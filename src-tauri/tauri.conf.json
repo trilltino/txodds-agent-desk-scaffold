@@ -27,9 +27,9 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "../sidecars/coralos-bridge.mjs",
-      "../sidecars/yellowstone-bridge.mjs",
-      "../sidecars/bin/node.exe",
+      "../runtime/sidecars/coralos-bridge.mjs",
+      "../runtime/sidecars/yellowstone-bridge.mjs",
+      "../runtime/sidecars/bin/node.exe",
       "../node_modules/@grpc",
       "../node_modules/@js-sdsl",
       "../node_modules/@protobufjs",

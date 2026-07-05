@@ -44,7 +44,7 @@ The repo is organized around CoralOS-style boundaries:
 | `src/domain/triton/` | Browser-dev Triton fallback client. |
 | `src/domain/txline/` | Browser-dev TxLINE fallback client and mock fixtures. |
 | `src/desktop/transport.ts` | The Tauri IPC boundary. |
-| `sidecars/` | Node sidecars for CoralOS settlement and Yellowstone gRPC. |
+| `runtime/sidecars/` | Node sidecars for CoralOS settlement and Yellowstone gRPC. |
 
 ## Coral Agents
 
@@ -72,7 +72,7 @@ WATCH_ESCROW_PROGRAM_ID=...
 WATCH_MARKET_PROGRAM_ID=...
 ```
 
-CoralOS settlement runs through `sidecars/coralos-bridge.mjs`. It prefers `CORALOS_BRIDGE_URL` if you provide a custom bridge matching `docs/integration-with-solana-coralos.md`; otherwise it calls the existing TxODDS proxy `/api/settle` from `trilltino/solana_coralOS`.
+CoralOS settlement runs through `runtime/sidecars/coralos-bridge.mjs`. It prefers `CORALOS_BRIDGE_URL` if you provide a custom bridge matching `docs/integrations/coralos-settlement.md`; otherwise it calls the existing TxODDS proxy `/api/settle` from `trilltino/solana_coralOS`.
 
 ```bash
 CORALOS_ROOT=C:\path\to\solana_coralOS
@@ -85,12 +85,12 @@ The sidecars run outside the webview. Tokens, keypairs, proxy credentials, and s
 
 ## E2E Flow
 
-- `src-tauri/src/triton/yellowstone.rs` starts `sidecars/yellowstone-bridge.mjs` when `TRITON_GRPC_ENDPOINT` and `TRITON_X_TOKEN` are configured.
+- `src-tauri/src/triton/yellowstone.rs` starts `runtime/sidecars/yellowstone-bridge.mjs` when `TRITON_GRPC_ENDPOINT` and `TRITON_X_TOKEN` are configured.
 - `watch_account`, `watch_program`, and `watch_reference` commands update live Yellowstone subscription filters from the desktop app.
 - `src-tauri/src/coral/market.rs` runs WANT -> BID -> AWARD -> DELIVERED -> VERIFIED.
-- `src-tauri/src/coral/settlement.rs` sends completed runs to `sidecars/coralos-bridge.mjs` over newline-delimited JSON.
+- `src-tauri/src/coral/settlement.rs` sends completed runs to `runtime/sidecars/coralos-bridge.mjs` over newline-delimited JSON.
 - `run_agent_round` attempts CoralOS settlement, emits `settle://receipt`, registers Yellowstone watches for the returned escrow/reference, observes through Triton RPC, and persists the run to SQLite.
-- The Windows installer bundles sidecar scripts, their Node module runtime dependencies, and `sidecars/bin/node.exe`; `NODE_BIN` can still override the bundled runtime.
+- The Windows installer bundles sidecar scripts, their Node module runtime dependencies, and `runtime/sidecars/bin/node.exe`; `NODE_BIN` can still override the bundled runtime.
 
 ## CoralOS Reference Map
 

@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const target = resolve(root, 'sidecars', 'bin', 'node.exe')
+const target = resolve(root, 'runtime', 'sidecars', 'bin', 'node.exe')
 
 if (process.platform !== 'win32') {
   console.warn('prepare-sidecars: bundled node.exe is only prepared on Windows')

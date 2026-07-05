@@ -4,4 +4,5 @@ dist/
 .env.local
 src-tauri/target/
 .agents/
-sidecars/bin/node.exe
+runtime/sidecars/bin/node.exe
+sidecars/

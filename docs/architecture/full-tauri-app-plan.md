@@ -4,7 +4,7 @@
 
 This is not a rewrite. Every phase keeps the app demoable. Each phase moves one responsibility across the IPC boundary and has an acceptance test you can run.
 
-**Implementation status (2026-07-05):** the repo now contains the desktop implementation path described here: native Triton RPC, Rust-owned TxLINE ingestion/replay, SQLite ledger, Rust market rounds, a Rust-managed Yellowstone gRPC sidecar, and a Rust-managed CoralOS settlement sidecar. The Yellowstone sidecar uses Triton's official Node SDK pinned to the Windows-compatible `4.x` line; the packaged app bundles the sidecar scripts, runtime Node packages, and `sidecars/bin/node.exe`.
+**Implementation status (2026-07-05):** the repo now contains the desktop implementation path described here: native Triton RPC, Rust-owned TxLINE ingestion/replay, SQLite ledger, Rust market rounds, a Rust-managed Yellowstone gRPC sidecar, and a Rust-managed CoralOS settlement sidecar. The Yellowstone sidecar uses Triton's official Node SDK pinned to the Windows-compatible `4.x` line; the packaged app bundles the sidecar scripts, runtime Node packages, and `runtime/sidecars/bin/node.exe`.
 
 ---
 
@@ -372,7 +372,7 @@ npm run dev
 npx tsc --noEmit                            cargo check --manifest-path src-tauri/Cargo.toml
 
 # icons (one-time, before first build)
-npx tauri icon assets/icon-1024.png
+npx tauri icon branding/icon-1024.png
 
 # release build → src-tauri/target/release/bundle/
 npm run tauri:build

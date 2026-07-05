@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:desktop": "npm run prepare:sidecars && npm run build",
-    "prepare:sidecars": "node scripts/prepare-sidecars.mjs",
+    "prepare:sidecars": "node tooling/prepare-sidecars.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

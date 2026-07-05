@@ -488,21 +488,29 @@ fn resolve_sidecar_path(app: &tauri::App, config: &AppConfig) -> PathBuf {
 }
 
 fn resolve_named_sidecar_path(app: &tauri::App, name: &str) -> PathBuf {
-    let dev_path = std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("sidecars")
-        .join(name);
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let dev_path = cwd.join("runtime").join("sidecars").join(name);
     if dev_path.exists() {
         return dev_path;
+    }
+
+    let legacy_dev_path = cwd.join("sidecars").join(name);
+    if legacy_dev_path.exists() {
+        return legacy_dev_path;
     }
 
     let resource_dir = app
         .path()
         .resource_dir()
         .unwrap_or_else(|_| PathBuf::from("."));
-    let packaged_sidecar = resource_dir.join("sidecars").join(name);
+    let packaged_sidecar = resource_dir.join("runtime").join("sidecars").join(name);
     if packaged_sidecar.exists() {
         return packaged_sidecar;
+    }
+
+    let legacy_packaged_sidecar = resource_dir.join("sidecars").join(name);
+    if legacy_packaged_sidecar.exists() {
+        return legacy_packaged_sidecar;
     }
 
     resource_dir.join(name)
