@@ -675,8 +675,11 @@ pub fn run() {
             // Optional Axum diagnostics bind to loopback only and remain
             // secondary to Tauri IPC.
             if config.axum_enabled {
-                let _ =
-                    web::spawn_loopback(config.public(), config.axum_token.clone(), ledger.clone());
+                std::mem::drop(web::spawn_loopback(
+                    config.public(),
+                    config.axum_token.clone(),
+                    ledger.clone(),
+                ));
             }
 
             app.manage(DesktopState {

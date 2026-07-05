@@ -155,7 +155,7 @@ async fn live_stream_loop(
             ),
             Err(err) => emit_status(&app, &source, "reconnecting", &err),
         }
-        let backoff_secs = attempt.min(30).max(1);
+        let backoff_secs = attempt.clamp(1, 30);
         tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
     }
 }

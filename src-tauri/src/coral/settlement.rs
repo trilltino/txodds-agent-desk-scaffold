@@ -57,7 +57,7 @@ impl SettlementBridge {
             .winner
             .as_ref()
             .map(|winner| winner.price_sol)
-            .unwrap_or(config.max_devnet_spend_sol.min(0.001).max(0.001));
+            .unwrap_or_else(|| fallback_amount_sol(config.max_devnet_spend_sol));
 
         // Payload intentionally includes the full run context but no private
         // key material. Sidecar secrets come from env/config, not the webview.
@@ -89,6 +89,14 @@ impl SettlementBridge {
             })));
         }
         Ok(response.into_receipt(amount_sol))
+    }
+}
+
+fn fallback_amount_sol(max_devnet_spend_sol: f64) -> f64 {
+    if max_devnet_spend_sol.is_finite() && max_devnet_spend_sol > 0.0 {
+        max_devnet_spend_sol.min(0.001)
+    } else {
+        0.001
     }
 }
 

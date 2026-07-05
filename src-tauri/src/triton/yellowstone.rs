@@ -20,11 +20,14 @@ use crate::types::{now_iso, ChainStatus, Cluster};
 #[serde(rename_all = "camelCase")]
 enum YellowstoneCommand {
     // Subscribe to account updates.
-    WatchAccount { account: String },
+    #[serde(rename = "watchAccount")]
+    Account { account: String },
     // Subscribe to transactions involving a program id.
-    WatchProgram { program_id: String },
+    #[serde(rename = "watchProgram")]
+    Program { program_id: String },
     // Subscribe to transactions involving a settlement reference/account string.
-    WatchReference { reference: String },
+    #[serde(rename = "watchReference")]
+    Reference { reference: String },
 }
 
 #[derive(Clone)]
@@ -37,19 +40,15 @@ pub struct YellowstoneHandle {
 impl YellowstoneHandle {
     // Fire-and-forget watch updates keep Tauri commands synchronous.
     pub fn watch_account(&self, account: String) {
-        let _ = self.tx.send(YellowstoneCommand::WatchAccount { account });
+        let _ = self.tx.send(YellowstoneCommand::Account { account });
     }
 
     pub fn watch_program(&self, program_id: String) {
-        let _ = self
-            .tx
-            .send(YellowstoneCommand::WatchProgram { program_id });
+        let _ = self.tx.send(YellowstoneCommand::Program { program_id });
     }
 
     pub fn watch_reference(&self, reference: String) {
-        let _ = self
-            .tx
-            .send(YellowstoneCommand::WatchReference { reference });
+        let _ = self.tx.send(YellowstoneCommand::Reference { reference });
     }
 }
 
