@@ -1,3 +1,9 @@
+//! Deterministic Coral-style market engine.
+//!
+//! This module models the buyer/seller/verifier lifecycle without an LLM or
+//! external agent supervisor yet. It is the right place to split strategies into
+//! real agent handlers later.
+
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -8,6 +14,8 @@ use crate::types::{
 };
 
 pub fn run_round(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
+    // Start with the shared run shell and append phase entries as each market
+    // step completes.
     let mut run = empty_run(trigger, track);
     push(
         &mut run,
@@ -15,6 +23,7 @@ pub fn run_round(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
         format!("worldcup-buyer-agent asks for {track} output"),
     );
 
+    // Sellers bid according to track fit and event context.
     run.bids = generate_bids(&run.trigger, track);
     let bid_count = run.bids.len();
     push(
@@ -23,6 +32,7 @@ pub fn run_round(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
         format!("{bid_count} specialist agents bid"),
     );
 
+    // Winner selection is deterministic and auditable; no hidden LLM choice.
     run.winner = choose_winner(track, &run.bids);
     let winner_detail = format!(
         "{} selected on value/confidence/price",
@@ -34,6 +44,8 @@ pub fn run_round(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
     push(&mut run, "AWARD", winner_detail);
 
     if let Some(winner) = run.winner.clone() {
+        // The delivery payload is the artifact being bought. Its hash becomes
+        // the settlement reference.
         let payload = make_delivery_payload(&run.trigger, track, &winner.agent_id);
         let sha256 = sha256_hex(&payload);
         let delivery = AgentDelivery {
@@ -60,6 +72,8 @@ pub fn run_round(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
             format!("artifact sha256={}...", &sha256[..12]),
         );
 
+        // Verification is deliberately deterministic because settlement release
+        // should not depend on unbounded model behavior.
         let verdict = verify_delivery(&delivery, track);
         push(
             &mut run,
@@ -91,10 +105,14 @@ pub fn run_round(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
 }
 
 pub fn append_timeline(run: &mut AgentRun, label: impl Into<String>, detail: impl Into<String>) {
+    // Public helper lets settlement/Triton enrichment add audit events without
+    // exposing the private push helper.
     push(run, label, detail);
 }
 
 pub fn score_bid(track: TrackMode, bid: &AgentBid) -> f64 {
+    // Role boosts encode product-track fit. Complex strategies should extend
+    // this into per-agent strategy modules rather than hiding logic in the UI.
     let role_boost = match (&bid.role, track) {
         (AgentRole::Sharp, TrackMode::Trading) => 1.25,
         (AgentRole::Risk, TrackMode::Trading) => 1.15,
@@ -110,6 +128,8 @@ pub fn score_bid(track: TrackMode, bid: &AgentBid) -> f64 {
 }
 
 fn empty_run(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
+    // Generate unique run ids from track, trigger, and UUID so browser/native
+    // histories can safely merge multiple rounds for the same event.
     AgentRun {
         run_id: format!("{track}-{}-{}", trigger.id, Uuid::new_v4()),
         track,
@@ -137,6 +157,8 @@ fn empty_run(trigger: TxLineEvent, track: TrackMode) -> AgentRun {
 }
 
 fn generate_bids(event: &TxLineEvent, track: TrackMode) -> Vec<AgentBid> {
+    // Event kind is the first confidence signal. Odds moves are most native to
+    // market/trading work; goals are still meaningful but less price-specific.
     let base: f64 = match event.kind {
         TxLineEventKind::OddsMove => 0.82,
         TxLineEventKind::Goal => 0.78,
@@ -185,6 +207,7 @@ fn generate_bids(event: &TxLineEvent, track: TrackMode) -> Vec<AgentBid> {
         },
     ];
 
+    // Filter by track so services bid only where they are credible.
     bids.into_iter()
         .filter(|bid| match track {
             TrackMode::Fan => matches!(
@@ -204,12 +227,15 @@ fn generate_bids(event: &TxLineEvent, track: TrackMode) -> Vec<AgentBid> {
 }
 
 fn choose_winner(track: TrackMode, bids: &[AgentBid]) -> Option<AgentBid> {
+    // total_cmp avoids NaN-related panics and gives deterministic ordering for
+    // floating-point scores.
     bids.iter()
         .cloned()
         .max_by(|a, b| score_bid(track, a).total_cmp(&score_bid(track, b)))
 }
 
 fn delivery_title(track: TrackMode) -> &'static str {
+    // Titles are UI-facing labels; payload content carries the real schema.
     match track {
         TrackMode::Settlement => "Verifiable resolution package",
         TrackMode::Trading => "Autonomous signal package",
@@ -218,6 +244,8 @@ fn delivery_title(track: TrackMode) -> &'static str {
 }
 
 fn make_delivery_payload(event: &TxLineEvent, track: TrackMode, agent_id: &str) -> String {
+    // Structured JSON gives the verifier deterministic fields to check while
+    // still allowing fan/trading/settlement-specific content.
     match track {
         TrackMode::Settlement => serde_json::json!({
             "type": "resolution_package",
@@ -251,6 +279,8 @@ fn make_delivery_payload(event: &TxLineEvent, track: TrackMode, agent_id: &str) 
 }
 
 fn verify_delivery(delivery: &AgentDelivery, track: TrackMode) -> VerificationVerdict {
+    // Every track checks fixture binding, hash presence, and policy posture.
+    // Settlement also expects proof-aware verification.
     let mut checked = vec![
         VerdictCheck::TxlineInput,
         VerdictCheck::Hash,
@@ -281,6 +311,7 @@ fn verify_delivery(delivery: &AgentDelivery, track: TrackMode) -> VerificationVe
 }
 
 fn push(run: &mut AgentRun, label: impl Into<String>, detail: impl Into<String>) {
+    // Centralize timestamps so timeline entries share the same UTC format.
     run.timeline.push(TimelineEntry {
         at: now_iso(),
         label: label.into(),
@@ -289,6 +320,7 @@ fn push(run: &mut AgentRun, label: impl Into<String>, detail: impl Into<String>)
 }
 
 fn sha256_hex(text: &str) -> String {
+    // Keep the reference hash implementation identical to lib.rs hash_delivery.
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
     hex::encode(hasher.finalize())

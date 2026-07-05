@@ -4,12 +4,16 @@ import { generateBids } from './bidding'
 import { chooseWinner } from './scoring'
 import { observeSettlement } from '../triton/client'
 
+// Browser crypto is enough for fallback hash/reference generation. Native mode
+// uses Rust for the same responsibility so packaged app behavior is backend-owned.
 async function sha256Hex(text: string): Promise<string> {
   const bytes = new TextEncoder().encode(text)
   const hash = await crypto.subtle.digest('SHA-256', bytes)
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// Local round preserves the same phase vocabulary as Rust: WANT -> BID -> AWARD
+// -> DELIVERED -> VERIFIED -> TRITON -> SETTLEMENT.
 export async function runLocalAgentRound(event: TxLineEvent, track: TrackMode): Promise<AgentRun> {
   const run = emptyRun(event, track)
   run.timeline.push({ at: new Date().toISOString(), label: 'WANT', detail: `worldcup-buyer-agent asks for ${track} output on fixture ${event.fixtureId}` })
@@ -22,6 +26,8 @@ export async function runLocalAgentRound(event: TxLineEvent, track: TrackMode): 
 
   if (!run.winner) return run
 
+  // The delivery payload is the hash-bound artifact. Every downstream proof,
+  // reference, and settlement receipt points back to this content.
   const payload = makeDeliveryPayload(event, track, run.winner.agentId)
   const sha256 = await sha256Hex(payload)
   run.delivery = {
@@ -46,6 +52,8 @@ export async function runLocalAgentRound(event: TxLineEvent, track: TrackMode): 
     tritonObserved: false
   }
   try {
+    // Browser mode can only observe through the Vite proxy fallback. Native mode
+    // does this in Rust and can also register Yellowstone watches.
     const observation = await observeSettlement(`sha256:${sha256.slice(0, 12)}`)
     run.settlement.tritonObserved = true
     run.settlement.tritonSlot = observation.slot
@@ -62,12 +70,16 @@ export async function runLocalAgentRound(event: TxLineEvent, track: TrackMode): 
   return run
 }
 
+// Human-facing delivery titles are track-specific but do not change the
+// underlying delivery schema.
 function deliveryTitle(track: TrackMode): string {
   if (track === 'settlement') return 'Verifiable resolution package'
   if (track === 'trading') return 'Autonomous signal package'
   return 'AI pundit fan card'
 }
 
+// Produce structured JSON payloads so later verifier/settlement logic can check
+// fixture binding and policy constraints without parsing prose.
 function makeDeliveryPayload(event: TxLineEvent, track: TrackMode, agentId: string): string {
   if (track === 'settlement') {
     return JSON.stringify({
@@ -102,6 +114,8 @@ function makeDeliveryPayload(event: TxLineEvent, track: TrackMode, agentId: stri
   }, null, 2)
 }
 
+// Minimal deterministic verifier for browser fallback. Stronger proof checks
+// belong in Rust before any settlement release.
 function verifyDelivery(delivery: AgentDelivery, track: TrackMode): VerificationVerdict {
   const checked: VerificationVerdict['checked'] = ['txline-input', 'hash', 'policy']
   if (track === 'settlement') checked.push('proof')

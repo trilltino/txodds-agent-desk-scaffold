@@ -1,6 +1,8 @@
 import type { CoralAgentManifest } from '../../types'
 import { listCoralAgentsNative, native } from '../../desktop/transport'
 
+// Browser-dev fallback registry. Native desktop mode should ask Rust for the
+// registry so the backend and UI agree on active Coral identities.
 export const fallbackCoralAgents: CoralAgentManifest[] = [
   {
     id: 'worldcup-buyer-agent',
@@ -52,6 +54,8 @@ export const fallbackCoralAgents: CoralAgentManifest[] = [
   }
 ]
 
+// Load agent metadata from the strongest available source. If native IPC fails,
+// the UI remains usable with the mirrored fallback list.
 export async function loadCoralAgents(): Promise<CoralAgentManifest[]> {
   if (!native) return fallbackCoralAgents
   return listCoralAgentsNative().catch(() => fallbackCoralAgents)

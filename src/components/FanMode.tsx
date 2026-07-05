@@ -1,9 +1,14 @@
 import type { AgentRun, TxLineEvent } from '../types'
 import { exportFanCardNative, native } from '../desktop/transport'
 
+// FanMode converts the selected event or winning delivery into plain-language
+// output for the consumer/fan track.
 export function FanMode({ run, selectedEvent }: { run?: AgentRun; selectedEvent: TxLineEvent }) {
+  // Prefer the delivery's fan copy when an agent run exists; otherwise keep the
+  // selected TxLINE event readable before any market round has run.
   const payload = run?.delivery?.fanCopy ?? selectedEvent.body
   async function exportCard() {
+    // Export is native-only because Rust owns filesystem access.
     if (!run || !native) return
     const result = await exportFanCardNative(run.runId)
     console.info(`Fan card exported to ${result.path}`)

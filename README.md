@@ -11,13 +11,30 @@ This repo is a standalone Tauri app that can call the existing `trilltino/solana
 
 ## Run
 
-```bash
-npm install
-cp .env.example .env
-npm run tauri:dev
+Install `just` once:
+
+```powershell
+winget install --id Casey.Just -e
+```
+
+Then use the project terminal recipes:
+
+```powershell
+just setup
+just desktop
 ```
 
 With no credentials, the app runs against mock data. Add `TXLINE_GUEST_JWT` and `TXLINE_API_TOKEN` for live TxLINE calls.
+
+Common recipes:
+
+| Command | Purpose |
+|---|---|
+| `just desktop` | Start the native Tauri desktop app. |
+| `just web` | Start browser-only Vite dev mode. |
+| `just check` | Run TypeScript, Rust, and sidecar syntax checks. |
+| `just build` | Build webview assets and prepare sidecars. |
+| `just tauri-build` | Build the packaged desktop app/installer. |
 
 ## Desktop Architecture
 
@@ -27,7 +44,7 @@ This is an end-to-end Tauri desktop app, not a browser-only web app:
 - Rust owns secrets, TxLINE ingestion, Triton RPC, Yellowstone observation, run persistence, market-round execution, settlement bridging, and native export.
 - React/HTML/CSS/JavaScript remains the frontend renderer inside the Tauri webview.
 - In packaged/native mode, production network calls go through Rust commands and events. The webview does not receive Triton, TxLINE, CoralOS, or keypair secrets.
-- Plain `npm run dev` remains useful for browser UI iteration, but `npm run tauri:dev` and `npm run tauri:build` are the desktop product paths.
+- Plain `just web` remains useful for browser UI iteration, but `just desktop` and `just tauri-build` are the desktop product paths.
 
 ## Compartments
 

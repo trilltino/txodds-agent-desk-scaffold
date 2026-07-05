@@ -1,3 +1,8 @@
+//! TxLINE live/mock/replay ingestion.
+//!
+//! Live mode owns TxLINE credentials in Rust, mock mode keeps demos offline, and
+//! replay mode re-emits previously recorded JSONL events.
+
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -14,6 +19,7 @@ use crate::types::{mock_events, now_iso, TxLineEvent, TxLineEventKind};
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct IngestStatus {
+    // Source is live/mock/replay so the UI can report the active ingest mode.
     source: String,
     state: String,
     detail: String,
@@ -27,6 +33,8 @@ pub fn spawn_txline(
     fixture_id: Option<String>,
     replay_dir: PathBuf,
 ) -> tauri::async_runtime::JoinHandle<()> {
+    // Spawn one independent task per requested mode. lib.rs owns task
+    // cancellation when switching modes.
     tauri::async_runtime::spawn(async move {
         match mode.as_str() {
             "live" => live_loop(app, client, config, replay_dir).await,
@@ -37,6 +45,7 @@ pub fn spawn_txline(
 }
 
 async fn mock_loop(app: AppHandle) {
+    // Mock mode emits built-in events with a short delay to resemble a live feed.
     emit_status(&app, "mock", "connected", "Rust mock TxLINE stream active");
     for event in mock_events() {
         emit_event(&app, event);
@@ -46,6 +55,8 @@ async fn mock_loop(app: AppHandle) {
 }
 
 async fn replay_loop(app: AppHandle, replay_dir: PathBuf, fixture_id: Option<String>) {
+    // Replay mode is judging-day insurance: the app can demonstrate real event
+    // shapes without a live TxLINE connection.
     emit_status(&app, "replay", "connected", "Rust replay stream active");
     let fixture = fixture_id.unwrap_or_else(|| "default".to_string());
     let path = replay_dir.join(format!("{fixture}.jsonl"));
@@ -63,6 +74,8 @@ async fn replay_loop(app: AppHandle, replay_dir: PathBuf, fixture_id: Option<Str
         }
     };
 
+    // JSONL keeps replay append simple and lets corrupted lines be reported
+    // without dropping the whole replay file.
     for line in contents.lines().filter(|line| !line.trim().is_empty()) {
         match serde_json::from_str::<TxLineEvent>(line) {
             Ok(event) => emit_event(&app, event),
@@ -74,6 +87,7 @@ async fn replay_loop(app: AppHandle, replay_dir: PathBuf, fixture_id: Option<Str
 }
 
 async fn live_loop(app: AppHandle, client: Client, config: AppConfig, replay_dir: PathBuf) {
+    // Missing credentials degrade to mock mode rather than leaving the UI empty.
     let Some(jwt) = config.txline_guest_jwt.as_deref() else {
         emit_status(
             &app,
@@ -101,6 +115,8 @@ async fn live_loop(app: AppHandle, client: Client, config: AppConfig, replay_dir
         "connected",
         "Rust TxLINE SSE client connecting",
     );
+    // Current live integration reads the odds stream; score/proof streams can be
+    // added as parallel loops later.
     let stream_url = format!(
         "{}/api/odds/stream",
         config.txline_api_origin.trim_end_matches('/')
@@ -139,6 +155,8 @@ async fn live_loop(app: AppHandle, client: Client, config: AppConfig, replay_dir
             break;
         };
         buffer.push_str(&String::from_utf8_lossy(&chunk));
+        // SSE frames are separated by a blank line. Buffering protects against
+        // chunk boundaries splitting a JSON payload.
         while let Some(index) = buffer.find("\n\n") {
             let block = buffer[..index].to_string();
             buffer = buffer[index + 2..].to_string();
@@ -152,6 +170,8 @@ async fn live_loop(app: AppHandle, client: Client, config: AppConfig, replay_dir
 }
 
 fn parse_sse_block(stream: &str, block: &str) -> Option<TxLineEvent> {
+    // Only `data:` lines are converted; retry/id/event fields can be added when
+    // the upstream stream requires them.
     let data_line = block
         .lines()
         .find(|line| line.trim_start().starts_with("data:"))?;
@@ -161,6 +181,8 @@ fn parse_sse_block(stream: &str, block: &str) -> Option<TxLineEvent> {
         .unwrap_or(data_line)
         .trim();
     let raw = serde_json::from_str::<Value>(payload).ok()?;
+    // Keep raw payload for diagnostics while normalizing the stable fields used
+    // by the market engine.
     let fixture_id = raw
         .get("fixtureId")
         .or_else(|| raw.get("id"))
@@ -185,6 +207,8 @@ fn parse_sse_block(stream: &str, block: &str) -> Option<TxLineEvent> {
 }
 
 async fn append_replay(replay_dir: &Path, event: &TxLineEvent) {
+    // Replay append is best-effort. Failure should not prevent live events from
+    // reaching the UI.
     if tokio::fs::create_dir_all(replay_dir).await.is_err() {
         return;
     }
@@ -204,10 +228,12 @@ async fn append_replay(replay_dir: &Path, event: &TxLineEvent) {
 }
 
 fn emit_event(app: &AppHandle, event: TxLineEvent) {
+    // txline://event is the canonical webview feed event.
     let _ = app.emit("txline://event", event);
 }
 
 fn emit_status(app: &AppHandle, source: &str, state: &str, detail: &str) {
+    // Status events share a shape with Yellowstone status updates.
     let _ = app.emit(
         "ingest://status",
         IngestStatus {

@@ -1,6 +1,10 @@
 import type { AgentBid, TrackMode, TxLineEvent } from '../../types'
 
+// Deterministic browser-dev bid generator. Production native mode runs the Rust
+// version in src-tauri/src/coral/market.rs so bids can be persisted and settled.
 export function generateBids(event: TxLineEvent, track: TrackMode): AgentBid[] {
+  // Event kind adjusts the base confidence before role-specific strategy
+  // scoring. Odds moves are most market-native, then goals, then context events.
   const base = event.kind === 'odds_move' ? 0.82 : event.kind === 'goal' ? 0.78 : 0.7
   const bids: AgentBid[] = [
     {
@@ -44,6 +48,8 @@ export function generateBids(event: TxLineEvent, track: TrackMode): AgentBid[] {
       note: 'Settlement arbiter: packages the verified run for CoralOS escrow release and Triton observation.'
     }
   ]
+  // Track filters model service matching: not every seller should bid on every
+  // WANT, even when the demo data has all agents available.
   return bids.filter((bid) => {
     if (track === 'fan') return ['pundit', 'fan', 'sharp'].includes(bid.role)
     if (track === 'trading') return ['sharp', 'risk', 'pundit'].includes(bid.role)

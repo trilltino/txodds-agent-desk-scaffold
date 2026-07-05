@@ -1,3 +1,4 @@
+# Coral-style seller manifest for bounded risk policy output.
 [agent]
 name = "seller-risk-policy"
 version = "0.1.0"
@@ -6,6 +7,7 @@ service = "risk.policy"
 description = "Bids on trading-agent WANTs and sells bounded risk decisions."
 readme = "Turns TxLINE signals into no-action, observe, or simulate-position decisions. It never executes real-money trades."
 
+# Defaults should eventually drive exposure limits and allowed risk actions.
 [defaults]
 FLOOR_SOL = "0.00035"
 SERVICES = "risk.policy,signal.review"

@@ -1,6 +1,12 @@
+//! Shared backend data contracts.
+//!
+//! These structs are serialized through Tauri IPC/events and intentionally
+//! mirror the frontend TypeScript contracts in `src/types.ts`.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+// Solana clusters supported by the desktop command surface.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Cluster {
@@ -8,6 +14,7 @@ pub enum Cluster {
     Mainnet,
 }
 
+// Product track selected in the UI and recorded on every run.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TrackMode {
@@ -17,6 +24,8 @@ pub enum TrackMode {
 }
 
 impl std::fmt::Display for TrackMode {
+    // Store track values in lowercase strings for SQLite rows and user-facing
+    // timeline text.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
             Self::Settlement => "settlement",
@@ -27,6 +36,7 @@ impl std::fmt::Display for TrackMode {
     }
 }
 
+// Normalized TxLINE event kinds consumed by the market engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TxLineEventKind {
@@ -40,6 +50,7 @@ pub enum TxLineEventKind {
     ProofReceived,
 }
 
+// Odds quote normalized from TxLINE odds payloads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OddsQuote {
@@ -51,6 +62,7 @@ pub struct OddsQuote {
     pub ts: String,
 }
 
+// Score tuple shown in event/delivery payloads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Score {
@@ -58,6 +70,7 @@ pub struct Score {
     pub away: i64,
 }
 
+// Optional proof receipt attached to a TxLINE event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TxLineProofReceipt {
@@ -71,6 +84,7 @@ pub struct TxLineProofReceipt {
     pub note: String,
 }
 
+// Canonical TxLINE event shape across live, replay, and mock ingestion.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TxLineEvent {
@@ -86,6 +100,7 @@ pub struct TxLineEvent {
     pub proof: Option<TxLineProofReceipt>,
 }
 
+// Coral market role used for scoring and track filtering.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentRole {
@@ -97,6 +112,7 @@ pub enum AgentRole {
     Verifier,
 }
 
+// Bid submitted by a seller/verifier/settlement agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentBid {
@@ -108,6 +124,7 @@ pub struct AgentBid {
     pub note: String,
 }
 
+// Hash-bound artifact produced by the winning agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentDelivery {
@@ -121,6 +138,7 @@ pub struct AgentDelivery {
     pub fan_copy: Option<String>,
 }
 
+// Verifier decision state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerdictStatus {
@@ -129,6 +147,7 @@ pub enum VerdictStatus {
     NeedsReview,
 }
 
+// Individual checks performed by the verifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum VerdictCheck {
@@ -139,6 +158,7 @@ pub enum VerdictCheck {
     Settlement,
 }
 
+// Structured verifier result used to gate settlement.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationVerdict {
@@ -147,6 +167,7 @@ pub struct VerificationVerdict {
     pub checked: Vec<VerdictCheck>,
 }
 
+// Settlement lifecycle state shown in the UI and persisted in the ledger.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettlementStatus {
@@ -157,6 +178,7 @@ pub enum SettlementStatus {
     Refunded,
 }
 
+// Settlement receipt from mock logic, CoralOS sidecar, or future native escrow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettlementReceipt {
@@ -170,6 +192,7 @@ pub struct SettlementReceipt {
     pub triton_slot: Option<u64>,
 }
 
+// Timeline entry for the proof/audit panel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelineEntry {
@@ -178,6 +201,7 @@ pub struct TimelineEntry {
     pub detail: String,
 }
 
+// Full market round persisted to SQLite.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRun {
@@ -192,6 +216,7 @@ pub struct AgentRun {
     pub timeline: Vec<TimelineEntry>,
 }
 
+// Chain health/status emitted as chain://slot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainStatus {
@@ -202,6 +227,7 @@ pub struct ChainStatus {
     pub ts: String,
 }
 
+// Snapshot observation for a settlement reference/account/program.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TritonObservation {
@@ -214,6 +240,7 @@ pub struct TritonObservation {
     pub note: String,
 }
 
+// Event payload emitted for each market phase.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarketRoundEvent {
@@ -223,10 +250,12 @@ pub struct MarketRoundEvent {
     pub at: String,
 }
 
+// Millisecond-precision UTC timestamp used across timeline and event payloads.
 pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
+// Built-in mock events keep the desktop demo useful without live TxLINE access.
 pub fn mock_events() -> Vec<TxLineEvent> {
     let ts = now_iso();
     vec![

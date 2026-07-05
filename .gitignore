@@ -5,4 +5,4 @@ dist/
 src-tauri/target/
 .agents/
 runtime/sidecars/bin/node.exe
-sidecars/
+/sidecars/

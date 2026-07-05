@@ -1,10 +1,13 @@
 import type { AgentRun, Fixture, TxLineEvent } from '../../types'
 
+// Fixtures and events are intentionally small but realistic enough to exercise
+// every panel without live TxLINE credentials.
 export const mockFixtures: Fixture[] = [
   { fixtureId: 17588245, home: 'Brazil', away: 'England', competition: 'World Cup', status: 'live', startTime: new Date().toISOString() },
   { fixtureId: 17588246, home: 'France', away: 'Argentina', competition: 'World Cup', status: 'scheduled', startTime: new Date(Date.now() + 3600_000).toISOString() }
 ]
 
+// Mock events use the same TxLineEvent shape as Rust live/replay ingestion.
 export const mockEvents: TxLineEvent[] = [
   {
     id: 'evt-odds-1',
@@ -30,6 +33,8 @@ export const mockEvents: TxLineEvent[] = [
   }
 ]
 
+// Create the initial run shell before any Coral bids, delivery, verdict, or
+// settlement receipt exists.
 export function emptyRun(event: TxLineEvent, track: AgentRun['track']): AgentRun {
   return {
     runId: `${track}-${event.id}-${Date.now()}`,

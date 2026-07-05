@@ -1,3 +1,8 @@
+//! Triton JSON-RPC client.
+//!
+//! This module keeps rpcpool/Triton tokens in Rust and restricts the webview to
+//! a small allowlist of Solana RPC methods.
+
 use std::time::Instant;
 
 use reqwest::Client;
@@ -17,6 +22,7 @@ const ALLOWED_RPC_METHODS: &[&str] = &[
     "getTransaction",
 ];
 
+// Guardrail for the generic chain_rpc Tauri command.
 pub fn validate_rpc_method(method: &str) -> Result<(), AppError> {
     if ALLOWED_RPC_METHODS.contains(&method) {
         Ok(())
@@ -35,6 +41,8 @@ pub async fn triton_rpc(
     params: Value,
 ) -> Result<Value, AppError> {
     validate_rpc_method(method)?;
+    // Endpoint/token lookup is cluster-specific so devnet and mainnet can be
+    // configured independently.
     let endpoint = config
         .triton_endpoint(cluster)
         .ok_or_else(|| AppError::Config(format!("{cluster:?} Triton RPC endpoint missing")))?;
@@ -42,6 +50,8 @@ pub async fn triton_rpc(
         .triton_token(cluster)
         .ok_or_else(|| AppError::Config(format!("{cluster:?} Triton x-token missing")))?;
 
+    // Normalize params to JSON-RPC's array form. This keeps the webview command
+    // tolerant of null/single-object params without allowing arbitrary methods.
     let request = json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -53,6 +63,8 @@ pub async fn triton_rpc(
         }
     });
 
+    // Triton accepts x-token as a header; using headers avoids tokenized URLs in
+    // logs, cache keys, or UI-visible strings.
     let body: Value = client
         .post(endpoint)
         .header("x-token", token)
@@ -64,6 +76,7 @@ pub async fn triton_rpc(
         .await?;
 
     if let Some(error) = body.get("error") {
+        // Preserve JSON-RPC code/message for useful UI diagnostics.
         return Err(AppError::Rpc {
             code: error.get("code").and_then(Value::as_i64).unwrap_or(-1),
             message: error
@@ -82,6 +95,8 @@ pub async fn chain_status(
     config: &AppConfig,
     cluster: Cluster,
 ) -> Result<ChainStatus, AppError> {
+    // Slot latency is measured only around getSlot because that is the hot path
+    // shown in the chain strip.
     let started = Instant::now();
     let slot = triton_rpc(client, config, cluster, "getSlot", Value::Array(vec![]))
         .await?
@@ -89,6 +104,8 @@ pub async fn chain_status(
         .unwrap_or(0);
     let latency_ms = started.elapsed().as_millis();
 
+    // getVersion is slower/less volatile than slot but useful for proving a live
+    // RPC path in the UI.
     let version = triton_rpc(client, config, cluster, "getVersion", Value::Array(vec![])).await?;
     let solana_core = version
         .get("solana-core")
@@ -111,6 +128,8 @@ pub async fn observe_settlement(
     reference: String,
     escrow_account: Option<String>,
 ) -> Result<TritonObservation, AppError> {
+    // This snapshot gives the proof panel a current devnet slot/blockhash even
+    // before a real escrow PDA is available.
     let slot = triton_rpc(
         client,
         config,
@@ -134,6 +153,8 @@ pub async fn observe_settlement(
         .and_then(Value::as_str)
         .map(ToString::to_string);
 
+    // If settlement returned an escrow account, attach its most recent signature
+    // to make the observation more concrete.
     let signature = if let Some(account) = escrow_account.as_deref() {
         let sigs = triton_rpc(
             client,
@@ -171,6 +192,8 @@ pub async fn observe_settlement(
 }
 
 pub async fn yellowstone_status(config: &AppConfig) -> Result<String, AppError> {
+    // Status command reports configuration readiness when the sidecar is not
+    // already running.
     if config.triton_grpc_endpoint.is_some() && config.triton_x_token.is_some() {
         Ok("configured; Rust-managed Yellowstone gRPC sidecar streams slots, accounts, and transactions".to_string())
     } else {

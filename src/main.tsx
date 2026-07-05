@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles.css'
 
+// React is mounted once into the Tauri webview root. All desktop-specific
+// behavior is reached through App -> desktop/transport.ts instead of globals.
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

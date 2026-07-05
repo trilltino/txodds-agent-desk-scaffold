@@ -1,6 +1,8 @@
 import type { AgentRun, CoralAgentManifest, TrackMode } from '../types'
 import { scoreBid } from '../domain/coral/scoring'
 
+// AgentArena visualizes the Coral-style market: buyer identity plus whichever
+// sellers/verifier/settlement agents are active for the latest run.
 export function AgentArena({
   agents,
   run,
@@ -12,6 +14,8 @@ export function AgentArena({
   track: TrackMode
   onRun: () => void
 }) {
+  // Only display the buyer and agents that actually participated in this run so
+  // the roster reads like an execution trace instead of static marketing copy.
   const activeIds = new Set(run?.bids.map((bid) => bid.agentId) ?? [])
   const activeAgents = agents.filter((agent) => agent.coralRole === 'buyer' || activeIds.has(agent.id))
 

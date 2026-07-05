@@ -1,9 +1,13 @@
+// Static mapping between app surfaces and hackathon/submission tracks. This is
+// product narrative, not runtime behavior.
 const rows = [
   ['Prediction Markets & Settlement', 'TxLINE stream triggers markets; proof receipt/verifier gates escrow release; Triton confirms on-chain state.'],
   ['Trading Tools & Agents', 'Coral sellers bid on TxLINE WANTs; risk policy and fair-line reads are scored deterministically.'],
   ['Consumer & Fan Experiences', 'The fan-card seller explains goals, cards, and odds shifts in a mainstream UI.']
 ]
 
+// TrackScorecard keeps the three-track story visible without coupling it to the
+// actual market engine.
 export function TrackScorecard() {
   return (
     <article className="card">

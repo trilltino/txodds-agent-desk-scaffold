@@ -1,5 +1,7 @@
 import type { AgentRun } from '../types'
 
+// ProofPanel is the judge/operator audit view. It renders the timeline that
+// Rust/browser fallback code appends as each phase completes.
 export function ProofPanel({ run }: { run?: AgentRun }) {
   return (
     <article className="card">

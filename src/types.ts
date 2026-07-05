@@ -1,5 +1,14 @@
+// Shared frontend contracts. These shapes intentionally mirror the Rust
+// structs in src-tauri/src/types.rs so Tauri IPC can move typed app state
+// between the backend and the webview without translation glue in components.
+
+// The three product views use the same agent/run primitives but emphasize
+// different judging tracks and delivery formats.
 export type TrackMode = 'settlement' | 'trading' | 'fan'
 
+// Public Coral agent metadata shown in the UI. Today this is mirrored by
+// frontend fallback data and Rust built-ins; future work should load the TOML
+// manifests under coral-agents/ as the source of truth.
 export interface CoralAgentManifest {
   id: string
   displayName: string
@@ -9,6 +18,8 @@ export interface CoralAgentManifest {
   description: string
 }
 
+// TxLINE event kinds normalized into one enum so live, mock, and replay
+// ingestion all drive the same UI and market engine.
 export type TxLineEventKind =
   | 'fixture'
   | 'score_update'
@@ -19,6 +30,7 @@ export type TxLineEventKind =
   | 'odds_move'
   | 'proof_received'
 
+// Fixture metadata shown by TxLINE-backed screens.
 export interface Fixture {
   fixtureId: number
   home: string
@@ -28,6 +40,8 @@ export interface Fixture {
   status?: string
 }
 
+// Odds quotes store both decimal odds and implied probability because strategy
+// code reasons about probability movement, not only displayed prices.
 export interface OddsQuote {
   fixtureId: number
   outcome: 'home' | 'draw' | 'away' | string
@@ -37,6 +51,8 @@ export interface OddsQuote {
   ts: string
 }
 
+// Canonical event payload consumed by LiveFeed and the agent market. The raw
+// field is preserved for debugging while normalized fields drive app behavior.
 export interface TxLineEvent {
   id: string
   kind: TxLineEventKind
@@ -50,6 +66,8 @@ export interface TxLineEvent {
   proof?: TxLineProofReceipt
 }
 
+// Optional proof receipt used when TxLINE or an on-chain program provides a
+// verifiable stat/proof reference for settlement.
 export interface TxLineProofReceipt {
   fixtureId: number
   seq?: number
@@ -61,6 +79,7 @@ export interface TxLineProofReceipt {
   note: string
 }
 
+// A seller/verifier/settlement bid in the Coral-style market round.
 export interface AgentBid {
   agentId: string
   role: 'sharp' | 'risk' | 'pundit' | 'settlement' | 'fan' | 'verifier'
@@ -70,6 +89,8 @@ export interface AgentBid {
   note: string
 }
 
+// Artifact produced by the winning agent. The payload is hash-bound so Rust can
+// create stable settlement references and ledger entries.
 export interface AgentDelivery {
   agentId: string
   title: string
@@ -81,12 +102,16 @@ export interface AgentDelivery {
   fanCopy?: string
 }
 
+// Deterministic verifier output. LLMs may help produce explanations later, but
+// settlement gates should continue to depend on structured verdict fields.
 export interface VerificationVerdict {
   status: 'pass' | 'fail' | 'needs_review'
   reason: string
   checked: Array<'txline-input' | 'hash' | 'proof' | 'policy' | 'settlement'>
 }
 
+// Settlement receipt visible to the UI. The receipt may be a mock/devnet shape,
+// a CoralOS sidecar result, or a later native Solana escrow result.
 export interface SettlementReceipt {
   status: 'not_started' | 'escrow_created' | 'deposited' | 'released' | 'refunded'
   reference?: string
@@ -98,6 +123,8 @@ export interface SettlementReceipt {
   tritonSlot?: number
 }
 
+// Full persisted market run as rendered by AgentArena, SettlementLab, FanMode,
+// and ProofPanel.
 export interface AgentRun {
   runId: string
   track: TrackMode

@@ -26,9 +26,12 @@ export interface TritonObservation {
 
 const RPC_PATH: Record<Cluster, string> = { devnet: '/rpc/devnet', mainnet: '/rpc/mainnet' }
 
+// JSON-RPC id counter used only for browser-dev proxy calls.
 let nextId = 0
 
 export async function tritonRpc<T>(cluster: Cluster, method: string, params: unknown[] = []): Promise<T> {
+  // Native mode delegates to Rust so Triton endpoints/tokens stay outside the
+  // browser bundle and DevTools network tab.
   if (native) return chainRpcNative<T>(cluster, method, params)
 
   const res = await fetch(RPC_PATH[cluster], {
@@ -64,6 +67,8 @@ export async function getChainStatus(cluster: Cluster): Promise<ChainStatus> {
   const slot = await getSlot(cluster)
   const latencyMs = Math.round(performance.now() - started)
   let solanaCore = versionCache.get(cluster)
+  // Solana core version is stable enough to cache in browser fallback mode; slot
+  // must be fresh every tick.
   if (!solanaCore) {
     solanaCore = (await getVersion(cluster))['solana-core']
     versionCache.set(cluster, solanaCore)
@@ -82,6 +87,8 @@ export function watchSlots(
   intervalMs = 5000
 ): () => void {
   if (native) {
+    // Native mode listens for Yellowstone/Rust slot pushes but also polls as a
+    // conservative fallback while the stream connects.
     const stopEvent = onChainSlot((status) => {
       if (status.cluster === cluster) onStatus(status)
     })
@@ -106,6 +113,8 @@ export function watchSlots(
   let stopped = false
   let inFlight = false
   const tick = async () => {
+    // Avoid overlapping poll requests when an RPC call takes longer than the
+    // interval. That matters on low-tier endpoints.
     if (stopped || inFlight) return
     inFlight = true
     try {
@@ -133,6 +142,8 @@ export function watchSlots(
 export async function observeSettlement(reference: string, escrowAccount?: string): Promise<TritonObservation> {
   if (native) return observeSettlementNative(reference, escrowAccount)
 
+  // Browser fallback cannot watch accounts continuously; it stamps the current
+  // slot/blockhash and optionally looks up the latest escrow signature.
   const [slot, blockhashInfo] = await Promise.all([
     getSlot('devnet'),
     tritonRpc<{ value: { blockhash: string } }>('devnet', 'getLatestBlockhash')

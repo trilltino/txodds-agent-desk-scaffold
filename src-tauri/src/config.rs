@@ -1,10 +1,19 @@
+//! Runtime configuration and secret lookup.
+//!
+//! Development values come from `.env`; packaged/native secret values should
+//! come from the OS keychain. Only `PublicConfig` is ever serialized to the
+//! webview.
+
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::types::Cluster;
 
+// Windows Credential Manager service name used by the keyring crate.
 const KEYRING_SERVICE: &str = "World Cup Agent Desk";
 
+// Full backend configuration. This struct may contain credentials and must stay
+// on the Rust side of the Tauri IPC boundary.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub txline_api_origin: String,
@@ -34,6 +43,8 @@ pub struct AppConfig {
     pub axum_token: String,
 }
 
+// Redacted config returned to React. It exposes feature status and public
+// origins, never API tokens, JWTs, or private key material.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicConfig {
@@ -52,6 +63,8 @@ pub struct PublicConfig {
 }
 
 impl AppConfig {
+    // Load configuration once during Tauri setup. The random Axum token is
+    // per-process so loopback diagnostics cannot be reused across launches.
     pub fn load() -> Self {
         let _ = dotenvy::dotenv();
 
@@ -84,6 +97,7 @@ impl AppConfig {
         }
     }
 
+    // Collapse full config into a safe public view for get_config.
     pub fn public(&self) -> PublicConfig {
         PublicConfig {
             txline_api_origin: self.txline_api_origin.clone(),
@@ -104,10 +118,13 @@ impl AppConfig {
         }
     }
 
+    // Triton HTTP RPC needs both endpoint and token for the selected cluster.
     pub fn triton_pair_configured(&self, cluster: Cluster) -> bool {
         self.triton_endpoint(cluster).is_some() && self.triton_token(cluster).is_some()
     }
 
+    // Return the cluster-specific HTTP endpoint without exposing it through
+    // PublicConfig.
     pub fn triton_endpoint(&self, cluster: Cluster) -> Option<&str> {
         match cluster {
             Cluster::Devnet => self.triton_devnet_rpc.as_deref(),
@@ -115,6 +132,7 @@ impl AppConfig {
         }
     }
 
+    // Return the cluster-specific x-token from env/keyring.
     pub fn triton_token(&self, cluster: Cluster) -> Option<&str> {
         match cluster {
             Cluster::Devnet => self.triton_devnet_token.as_deref(),
@@ -123,10 +141,13 @@ impl AppConfig {
     }
 }
 
+// Environment helper with a string fallback for non-secret public settings.
 fn env_or_default(name: &str, fallback: &str) -> String {
     optional_env(name).unwrap_or_else(|| fallback.to_string())
 }
 
+// Read an environment variable, trim whitespace, and treat empty strings as
+// missing so `.env` placeholders do not count as configured.
 fn optional_env(name: &str) -> Option<String> {
     std::env::var(name)
         .ok()
@@ -134,6 +155,8 @@ fn optional_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+// Secret lookup prefers env for local dev and falls back to the OS keychain for
+// packaged desktop usage.
 fn secret(env_name: &str, key_name: &str) -> Option<String> {
     optional_env(env_name).or_else(|| {
         keyring::Entry::new(KEYRING_SERVICE, key_name)
@@ -144,12 +167,15 @@ fn secret(env_name: &str, key_name: &str) -> Option<String> {
     })
 }
 
+// Boolean env parser deliberately accepts common truthy strings and otherwise
+// returns the provided fallback.
 fn bool_env(name: &str, fallback: bool) -> bool {
     optional_env(name)
         .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
         .unwrap_or(fallback)
 }
 
+// Numeric env parser keeps malformed values non-fatal by falling back.
 fn number_env(name: &str, fallback: f64) -> f64 {
     optional_env(name)
         .and_then(|value| value.parse::<f64>().ok())

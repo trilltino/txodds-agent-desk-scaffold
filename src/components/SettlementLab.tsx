@@ -1,5 +1,8 @@
 import type { AgentRun } from '../types'
 
+// SettlementLab presents the current run's settlement receipt without owning
+// settlement behavior. Rust/sidecars decide whether a receipt is real, mocked,
+// observed by Triton, or still pending.
 export function SettlementLab({ run }: { run?: AgentRun }) {
   return (
     <article className="card">

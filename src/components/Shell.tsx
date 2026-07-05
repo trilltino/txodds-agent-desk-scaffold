@@ -1,6 +1,8 @@
 import type { TrackMode } from '../types'
 import { ChainStatusStrip } from './ChainStatus'
 
+// Shell owns global page chrome: app identity, track tabs, chain status, and
+// the primary manual round trigger. It does not know how backend work runs.
 interface Props {
   track: TrackMode
   setTrack: (track: TrackMode) => void
@@ -9,6 +11,7 @@ interface Props {
 }
 
 export function Shell({ track, setTrack, onStart, children }: Props) {
+  // Tabs map product tracks to labels without duplicating route-level state.
   const tabs: Array<[TrackMode, string]> = [
     ['settlement', 'Settlement Lab'],
     ['trading', 'Signal Arena'],

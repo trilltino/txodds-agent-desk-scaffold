@@ -1,5 +1,12 @@
+//! Coral agent registry exposed to the webview.
+//!
+//! The TOML manifests under `coral-agents/` are the intended future source of
+//! truth. This built-in registry keeps the app working until manifest parsing is
+//! promoted into runtime behavior.
+
 use serde::Serialize;
 
+// Public manifest summary returned by the `list_coral_agents` Tauri command.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoralAgentManifest {
@@ -11,6 +18,7 @@ pub struct CoralAgentManifest {
     pub description: &'static str,
 }
 
+// Return the agent identities used by the current market engine.
 pub fn built_in_agents() -> Vec<CoralAgentManifest> {
     vec![
         CoralAgentManifest {

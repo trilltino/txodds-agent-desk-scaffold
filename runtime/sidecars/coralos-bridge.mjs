@@ -1,10 +1,18 @@
+// CoralOS settlement bridge sidecar.
+//
+// Rust sends one NDJSON request on stdin and expects one normalized JSON response
+// on stdout. Diagnostic output should stay off stdout so Rust can parse reliably.
+
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 
+// Default local TxODDS proxy from the solana_coralOS example app.
 const DEFAULT_PROXY = 'http://localhost:8801'
 
 const rl = createInterface({ input: process.stdin, crlfDelay: Infinity })
 
+// Process every incoming line independently so Rust can keep the protocol simple
+// and versionable.
 for await (const line of rl) {
   if (!line.trim()) continue
   try {
@@ -17,13 +25,18 @@ for await (const line of rl) {
 }
 
 async function handle(request) {
+  // This sidecar currently has one command. Future commands should be explicit
+  // rather than overloading request payload shape.
   if (request.cmd !== 'settleRun') return { ok: false, error: `unknown command: ${request.cmd}` }
   const cfg = request.payload?.coralos ?? {}
 
+  // A custom bridge URL wins when provided, which lets users replace the bundled
+  // proxy adapter with a real CoralOS service.
   if (cfg.bridgeUrl) {
     return settleViaBridge(cfg.bridgeUrl, request)
   }
 
+  // Fallback to the TxODDS proxy from solana_coralOS.
   const proxyUrl = cfg.proxyUrl || process.env.CORALOS_TXODDS_PROXY || DEFAULT_PROXY
   if (process.env.CORALOS_AUTOSTART_PROXY === '1' && cfg.root) {
     await ensureProxy(cfg.root, proxyUrl)
@@ -33,6 +46,8 @@ async function handle(request) {
 }
 
 async function settleViaBridge(bridgeUrl, request) {
+  // Custom bridge mode posts the full run context, then attempts release against
+  // the returned round id.
   const base = bridgeUrl.replace(/\/$/, '')
   const round = await fetchJson(`${base}/rounds`, {
     method: 'POST',
@@ -58,6 +73,8 @@ async function settleViaBridge(bridgeUrl, request) {
 }
 
 async function settleViaProxy(proxyUrl, request) {
+  // TxODDS proxy mode uses the existing demo route and maps its response into
+  // the normalized receipt Rust expects.
   const base = proxyUrl.replace(/\/$/, '')
   const url = new URL(`${base}/api/settle`)
   url.searchParams.set('amount', String(request.amountSol || 0.001))
@@ -67,6 +84,8 @@ async function settleViaProxy(proxyUrl, request) {
 }
 
 function normalizeSettlement(result, raw) {
+  // Support multiple response spellings from bridge/proxy experiments while
+  // returning one stable Rust-facing shape.
   const open = result.open ?? result.deposit ?? {}
   const release = result.release ?? {}
   const escrow = result.escrow ?? {}
@@ -90,6 +109,8 @@ function normalizeSettlement(result, raw) {
 }
 
 async function ensureProxy(root, proxyUrl) {
+  // Local convenience path: if the CoralOS example proxy is not running, start it
+  // detached and wait for its board endpoint to become healthy.
   if (await healthy(proxyUrl)) return
 
   const txoddsDir = `${root.replace(/\/$/, '')}/examples/txodds`
@@ -110,6 +131,7 @@ async function ensureProxy(root, proxyUrl) {
 }
 
 async function healthy(proxyUrl) {
+  // A fast health probe keeps autostart from blindly spawning duplicate proxies.
   try {
     const res = await fetch(`${proxyUrl.replace(/\/$/, '')}/api/board`, { signal: AbortSignal.timeout(1500) })
     return res.ok
@@ -119,6 +141,8 @@ async function healthy(proxyUrl) {
 }
 
 async function fetchJson(url, init) {
+  // Centralized fetch wrapper adds a timeout and tolerant JSON/text handling so
+  // errors return useful messages to Rust.
   const res = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) })
   const text = await res.text()
   let body
@@ -131,4 +155,5 @@ async function fetchJson(url, init) {
   return body
 }
 
+// Sleep helper used by proxy startup polling.
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))

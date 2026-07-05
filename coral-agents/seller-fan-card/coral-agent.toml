@@ -1,3 +1,4 @@
+# Coral-style seller manifest for fan-facing explanation output.
 [agent]
 name = "seller-fan-card"
 version = "0.1.0"
@@ -6,6 +7,7 @@ service = "fan.card"
 description = "Bids on fan-experience WANTs and returns shareable match cards."
 readme = "Explains goals, cards, and odds movement in plain English for mainstream fans."
 
+# Defaults should eventually constrain tone, output schema, and service matching.
 [defaults]
 FLOOR_SOL = "0.00025"
 SERVICES = "fan.card,fan.explainer"

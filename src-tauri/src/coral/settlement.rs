@@ -1,3 +1,8 @@
+//! CoralOS settlement sidecar bridge.
+//!
+//! Rust owns the policy boundary and process supervision. The Node sidecar adapts
+//! to existing CoralOS/TxODDS routes and returns a normalized receipt.
+
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -12,6 +17,7 @@ use crate::types::{AgentRun, SettlementReceipt, SettlementStatus};
 
 #[derive(Debug, Clone)]
 pub struct SettlementBridge {
+    // Resolved path to runtime/sidecars/coralos-bridge.mjs or an override.
     sidecar_path: PathBuf,
 }
 
@@ -20,12 +26,17 @@ impl SettlementBridge {
         Self { sidecar_path }
     }
 
+    // Attempt settlement for a verified run. The caller decides whether failure
+    // is fatal; current demo flow records settlement failure but still persists
+    // the run.
     pub async fn settle_run(
         &self,
         config: &AppConfig,
         run: &AgentRun,
     ) -> Result<SettlementReceipt, AppError> {
         if !config.coralos_settlement_enabled {
+            // Feature gate prevents accidental settlement attempts on machines
+            // that should only simulate.
             return Err(AppError::Config("CORALOS_SETTLEMENT_ENABLED=0".to_string()));
         }
         if !self.sidecar_path.exists() {
@@ -35,16 +46,21 @@ impl SettlementBridge {
             )));
         }
 
+        // Use the market-generated settlement reference when available.
         let reference = run
             .settlement
             .as_ref()
             .and_then(|settlement| settlement.reference.clone());
+        // Demo settlement amount follows the winning bid, with a conservative
+        // fallback bounded by config.
         let amount_sol = run
             .winner
             .as_ref()
             .map(|winner| winner.price_sol)
             .unwrap_or(config.max_devnet_spend_sol.min(0.001).max(0.001));
 
+        // Payload intentionally includes the full run context but no private
+        // key material. Sidecar secrets come from env/config, not the webview.
         let request = SidecarRequest {
             cmd: "settleRun".to_string(),
             run_id: run.run_id.clone(),
@@ -79,6 +95,7 @@ impl SettlementBridge {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SidecarRequest {
+    // Command name for versionable NDJSON sidecar IPC.
     cmd: String,
     run_id: String,
     fixture_id: String,
@@ -101,6 +118,7 @@ struct SidecarResponse {
 
 impl SidecarResponse {
     fn into_receipt(self, _amount_sol: f64) -> SettlementReceipt {
+        // Infer lifecycle status from the strongest returned signature/PDA.
         let status = if self.release_sig.is_some() {
             SettlementStatus::Released
         } else if self.deposit_sig.is_some() {
@@ -128,6 +146,8 @@ async fn invoke_sidecar(
     request: &SidecarRequest,
 ) -> Result<SidecarResponse, AppError> {
     let node = resolve_node_bin(sidecar_path);
+    // Spawn a short-lived sidecar invocation. Stdin/stdout are NDJSON; stderr is
+    // reserved for diagnostics from the child process.
     let mut child = Command::new(node)
         .arg(sidecar_path)
         .stdin(Stdio::piped())
@@ -144,12 +164,16 @@ async fn invoke_sidecar(
         .take()
         .ok_or_else(|| AppError::Task("failed to open sidecar stdout".to_string()))?;
 
+    // Send exactly one request line and close stdin so the sidecar can complete
+    // and return exactly one response line.
     let line = serde_json::to_string(request)?;
     stdin.write_all(line.as_bytes()).await?;
     stdin.write_all(b"\n").await?;
     drop(stdin);
 
     let mut reader = BufReader::new(stdout).lines();
+    // Settlement can touch external devnet/proxy infrastructure, so allow a
+    // longer timeout than ordinary HTTP RPC.
     let response_line =
         tokio::time::timeout(std::time::Duration::from_secs(90), reader.next_line())
             .await
@@ -163,16 +187,19 @@ async fn invoke_sidecar(
 }
 
 fn resolve_node_bin(sidecar_path: &Path) -> PathBuf {
+    // NODE_BIN is useful during development or if packaging changes.
     if let Ok(path) = std::env::var("NODE_BIN") {
         return PathBuf::from(path);
     }
 
     if let Some(sidecar_dir) = sidecar_path.parent() {
+        // Current bundled layout: runtime/sidecars/bin/node.exe.
         let bundled = sidecar_dir.join("bin").join("node.exe");
         if bundled.exists() {
             return bundled;
         }
         if let Some(resource_dir) = sidecar_dir.parent() {
+            // Alternate packaged layout fallback.
             let bundled = resource_dir.join("bin").join("node.exe");
             if bundled.exists() {
                 return bundled;

@@ -1,5 +1,7 @@
 import type { TrackMode, TxLineEvent } from '../types'
 
+// LiveFeed renders normalized TxLINE events regardless of whether they came
+// from Rust live ingest, replay, or browser mock fixtures.
 interface Props {
   events: TxLineEvent[]
   selected: TxLineEvent
@@ -8,6 +10,8 @@ interface Props {
 }
 
 export function LiveFeed({ events, selected, onSelect, onStartRound }: Props) {
+  // The component stays intentionally dumb: selecting an event and creating a
+  // WANT are callbacks so backend/native mode remains controlled by App.
   return (
     <article className="card">
       <div className="cardHead">

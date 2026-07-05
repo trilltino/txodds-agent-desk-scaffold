@@ -1,3 +1,8 @@
+//! SQLite run ledger.
+//!
+//! The ledger persists complete AgentRun JSON so the app can recover demo/proof
+//! history across restarts while the schema remains easy to evolve.
+
 use std::path::Path;
 
 use rusqlite::{params, Connection};
@@ -6,14 +11,19 @@ use crate::error::AppError;
 use crate::types::AgentRun;
 
 pub struct LedgerStore {
+    // rusqlite connection is synchronous; callers protect LedgerStore with a
+    // Mutex when sharing it across async Tauri commands.
     conn: Connection,
 }
 
 impl LedgerStore {
+    // Open or create the ledger database and ensure required tables exist.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(
             "
+            -- WAL improves resilience for desktop apps where reads and writes
+            -- can happen from separate command/task contexts.
             PRAGMA journal_mode = WAL;
             PRAGMA foreign_keys = ON;
 
@@ -29,9 +39,13 @@ impl LedgerStore {
         Ok(Self { conn })
     }
 
+    // Insert/update a complete run. Storing both trigger_json and run_json keeps
+    // future querying options open while preserving the exact UI/audit payload.
     pub fn upsert_run(&self, run: &AgentRun) -> Result<(), AppError> {
         let trigger_json = serde_json::to_string(&run.trigger)?;
         let run_json = serde_json::to_string(run)?;
+        // Use the trigger timestamp as created_at when available so list order
+        // remains stable after later updates.
         let created_at = run
             .timeline
             .first()
@@ -58,12 +72,14 @@ impl LedgerStore {
         Ok(())
     }
 
+    // Return the newest runs for the history surface.
     pub fn list_runs(&self) -> Result<Vec<AgentRun>, AppError> {
         let mut stmt = self
             .conn
             .prepare("SELECT run_json FROM runs ORDER BY created_at DESC LIMIT 100")?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
+        // Deserialize row-by-row so a JSON/schema problem maps through AppError.
         let mut runs = Vec::new();
         for row in rows {
             runs.push(serde_json::from_str::<AgentRun>(&row?)?);
@@ -71,6 +87,7 @@ impl LedgerStore {
         Ok(runs)
     }
 
+    // Load one persisted run by id.
     pub fn get_run(&self, run_id: &str) -> Result<AgentRun, AppError> {
         let run_json: String = self
             .conn

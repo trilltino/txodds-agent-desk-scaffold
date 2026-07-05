@@ -1,3 +1,9 @@
+//! Tauri desktop backend.
+//!
+//! This module wires the privileged Rust side of the app: config, HTTP client,
+//! SQLite ledger, TxLINE ingestion, Triton RPC/Yellowstone observation, CoralOS
+//! settlement sidecars, and the IPC commands exposed to the React webview.
+
 mod config;
 mod coral;
 mod error;
@@ -25,12 +31,20 @@ use crate::types::{
 };
 
 struct DesktopState {
+    // Full config may contain secrets; only PublicConfig is returned to JS.
     config: AppConfig,
+    // Shared HTTP client for Triton, TxLINE, and sidecar-adjacent calls.
     client: Client,
+    // SQLite is protected by a Mutex because Tauri commands/background tasks can
+    // access it concurrently, while rusqlite::Connection itself is synchronous.
     ledger: Arc<Mutex<LedgerStore>>,
+    // Current TxLINE ingest task. Starting a new mode aborts the previous one.
     txline_task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    // Optional Yellowstone supervisor; absent when gRPC config is missing.
     yellowstone: Option<triton::yellowstone::YellowstoneHandle>,
+    // CoralOS sidecar bridge used after a run is verified.
     settlement_bridge: coral::settlement::SettlementBridge,
+    // App-data directories, not repo paths, for durable user/runtime output.
     replay_dir: PathBuf,
     export_dir: PathBuf,
 }
@@ -51,16 +65,20 @@ struct ExportResult {
 
 #[tauri::command]
 fn get_config(state: State<'_, DesktopState>) -> PublicConfig {
+    // Never serialize AppConfig directly; it may contain tokens/keypaths.
     state.config.public()
 }
 
 #[tauri::command]
 fn list_coral_agents() -> Vec<coral::agents::CoralAgentManifest> {
+    // Current registry is built-in Rust metadata mirrored by coral-agents TOML.
     coral::agents::built_in_agents()
 }
 
 #[tauri::command]
 fn hash_delivery(payload: String) -> HashReceipt {
+    // Stable hash/reference helper used by the webview for local artifacts and
+    // by future settlement/proof flows.
     let sha256 = sha256_hex(&payload);
     HashReceipt {
         reference: format!("sha256:{sha256}"),
@@ -75,6 +93,7 @@ async fn chain_rpc(
     params: Option<Value>,
     state: State<'_, DesktopState>,
 ) -> Result<Value, AppError> {
+    // triton::rpc validates the method allowlist before any network call.
     triton::rpc::triton_rpc(
         &state.client,
         &state.config,
@@ -92,6 +111,8 @@ async fn chain_status(
     state: State<'_, DesktopState>,
 ) -> Result<ChainStatus, AppError> {
     let status = triton::rpc::chain_status(&state.client, &state.config, cluster).await?;
+    // Echo status as an event so UI subscribers and one-shot command callers see
+    // consistent chain health.
     let _ = app.emit("chain://slot", &status);
     Ok(status)
 }
@@ -103,6 +124,8 @@ async fn observe_settlement(
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<TritonObservation, AppError> {
+    // Register continuous watches first when Yellowstone is available, then take
+    // an immediate RPC snapshot for command response/persistence.
     if let Some(yellowstone) = &state.yellowstone {
         yellowstone.watch_reference(reference.clone());
         if let Some(account) = escrow_account.clone() {
@@ -118,6 +141,7 @@ async fn observe_settlement(
 
 #[tauri::command]
 fn watch_account(account: String, state: State<'_, DesktopState>) -> Result<(), AppError> {
+    // Watch commands are thin IPC adapters around the Yellowstone supervisor.
     let yellowstone = state
         .yellowstone
         .as_ref()
@@ -153,6 +177,7 @@ async fn start_txline(
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<(), AppError> {
+    // Only one TxLINE task should own event emission at a time.
     {
         let mut task = state
             .txline_task
@@ -180,6 +205,8 @@ async fn start_txline(
 
 #[tauri::command]
 fn stop_txline(state: State<'_, DesktopState>) -> Result<(), AppError> {
+    // Abort is acceptable for ingest streams because events are append-only and
+    // replay writes happen before emission.
     let mut task = state
         .txline_task
         .lock()
@@ -197,6 +224,8 @@ async fn run_agent_round(
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<AgentRun, AppError> {
+    // The market engine produces a complete deterministic run first. Settlement
+    // and chain observation enrich it afterwards.
     let mut run = coral::market::run_round(trigger, track);
 
     if let Some(reference) = run
@@ -210,6 +239,8 @@ async fn run_agent_round(
             .await
         {
             Ok(receipt) => {
+                // Settlement success updates both the run timeline and live UI
+                // event stream. The webview sees receipts, not secrets.
                 let detail = format!(
                     "CoralOS sidecar settled reference {}",
                     receipt
@@ -230,6 +261,8 @@ async fn run_agent_round(
                 }
             }
             Err(err) => {
+                // Settlement is non-fatal for demoability: the run remains
+                // inspectable and records why CoralOS was unavailable.
                 coral::market::append_timeline(
                     &mut run,
                     "CORALOS",
@@ -256,6 +289,8 @@ async fn run_agent_round(
         .await
         {
             Ok(observation) => {
+                // Triton observation turns a local reference into a chain-stamped
+                // proof panel entry.
                 if let Some(settlement) = run.settlement.as_mut() {
                     settlement.triton_observed = Some(true);
                     settlement.triton_slot = observation.slot;
@@ -272,6 +307,8 @@ async fn run_agent_round(
                 }
             }
             Err(err) => {
+                // Keep the run even when RPC is unreachable; the ledger should
+                // reflect the attempted observation.
                 coral::market::append_timeline(
                     &mut run,
                     "TRITON",
@@ -282,6 +319,8 @@ async fn run_agent_round(
     }
 
     {
+        // Persist after settlement/observation enrichment so restart history
+        // contains the best available audit trail.
         let ledger = state
             .ledger
             .lock()
@@ -290,6 +329,8 @@ async fn run_agent_round(
     }
 
     for item in &run.timeline {
+        // Replay the complete timeline as live events. Newer UI can animate
+        // phases, while current UI receives the final run response.
         let _ = app.emit(
             "market://round",
             MarketRoundEvent {
@@ -302,6 +343,8 @@ async fn run_agent_round(
     }
 
     let _ = app.emit(
+        // Notification event is app-internal for now; native notification UI can
+        // subscribe to the same semantic payload later.
         "app://notification",
         serde_json::json!({
             "title": "Agent round complete",
@@ -315,6 +358,7 @@ async fn run_agent_round(
 
 #[tauri::command]
 fn list_runs(state: State<'_, DesktopState>) -> Result<Vec<AgentRun>, AppError> {
+    // History is loaded from SQLite rather than webview memory.
     let ledger = state
         .ledger
         .lock()
@@ -333,6 +377,8 @@ fn get_run(run_id: String, state: State<'_, DesktopState>) -> Result<AgentRun, A
 
 #[tauri::command]
 async fn fetch_txline(path: String, state: State<'_, DesktopState>) -> Result<Value, AppError> {
+    // Escape hatch for backend-owned TxLINE reads. Credentials are pulled from
+    // Rust config and never returned to the webview.
     let jwt = state
         .config
         .txline_guest_jwt
@@ -364,6 +410,8 @@ async fn export_fan_card(
     run_id: String,
     state: State<'_, DesktopState>,
 ) -> Result<ExportResult, AppError> {
+    // Export uses the ledger as source of truth so the webview cannot write
+    // arbitrary filesystem data.
     let run = {
         let ledger = state
             .ledger
@@ -391,6 +439,7 @@ async fn export_fan_card(
 
 #[tauri::command]
 async fn yellowstone_status(state: State<'_, DesktopState>) -> Result<String, AppError> {
+    // Explicit status command helps distinguish "not configured" from "running".
     if state.yellowstone.is_some() {
         Ok("Yellowstone gRPC observer is running".to_string())
     } else {
@@ -399,11 +448,15 @@ async fn yellowstone_status(state: State<'_, DesktopState>) -> Result<String, Ap
 }
 
 pub fn run() {
+    // Builder setup is the root composition point for plugins, managed state,
+    // commands, and background services.
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let config = AppConfig::load();
+            // App-data is the durable runtime home for ledger, replays, exports,
+            // and any future per-user state. Repo paths are for source only.
             let app_data_dir = app.path().app_data_dir().unwrap_or_else(|_| {
                 std::env::current_dir()
                     .unwrap_or_else(|_| PathBuf::from("."))
@@ -418,6 +471,8 @@ pub fn run() {
             let ledger = Arc::new(Mutex::new(LedgerStore::open(
                 app_data_dir.join("ledger.sqlite3"),
             )?));
+            // Resolve sidecar paths before state registration so configuration
+            // errors surface during app setup rather than first settlement.
             let sidecar_path = resolve_sidecar_path(app, &config);
             let yellowstone_sidecar_path =
                 resolve_named_sidecar_path(app, "yellowstone-bridge.mjs");
@@ -431,6 +486,8 @@ pub fn run() {
                 } else {
                     None
                 };
+            // Optional Axum diagnostics bind to loopback only and remain
+            // secondary to Tauri IPC.
             if config.axum_enabled {
                 let _ =
                     web::spawn_loopback(config.public(), config.axum_token.clone(), ledger.clone());
@@ -474,12 +531,14 @@ pub fn run() {
 }
 
 fn sha256_hex(text: &str) -> String {
+    // Hex SHA-256 is used for stable delivery references across Rust and JS.
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
     hex::encode(hasher.finalize())
 }
 
 fn resolve_sidecar_path(app: &tauri::App, config: &AppConfig) -> PathBuf {
+    // Explicit config override wins for local CoralOS experimentation.
     if let Some(path) = config.coralos_sidecar_path.as_deref() {
         return PathBuf::from(path);
     }
@@ -489,11 +548,14 @@ fn resolve_sidecar_path(app: &tauri::App, config: &AppConfig) -> PathBuf {
 
 fn resolve_named_sidecar_path(app: &tauri::App, name: &str) -> PathBuf {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // Development layout after workspace compartmentalization.
     let dev_path = cwd.join("runtime").join("sidecars").join(name);
     if dev_path.exists() {
         return dev_path;
     }
 
+    // Legacy fallback keeps older local builds/packages from breaking while the
+    // repo finishes migrating away from root sidecars/.
     let legacy_dev_path = cwd.join("sidecars").join(name);
     if legacy_dev_path.exists() {
         return legacy_dev_path;
@@ -503,11 +565,13 @@ fn resolve_named_sidecar_path(app: &tauri::App, name: &str) -> PathBuf {
         .path()
         .resource_dir()
         .unwrap_or_else(|_| PathBuf::from("."));
+    // Packaged resource layout mirrors the source runtime/sidecars directory.
     let packaged_sidecar = resource_dir.join("runtime").join("sidecars").join(name);
     if packaged_sidecar.exists() {
         return packaged_sidecar;
     }
 
+    // Legacy packaged resource fallback.
     let legacy_packaged_sidecar = resource_dir.join("sidecars").join(name);
     if legacy_packaged_sidecar.exists() {
         return legacy_packaged_sidecar;

@@ -3,8 +3,12 @@ import { listen } from '@tauri-apps/api/event'
 import type { AgentRun, CoralAgentManifest, TrackMode, TxLineEvent } from '../types'
 import type { ChainStatus, Cluster, TritonObservation } from '../domain/triton/client'
 
+// Runtime feature flag used by domain helpers to choose Tauri IPC in desktop
+// mode and browser fallback logic during plain Vite development.
 export const native = isTauri()
 
+// PublicConfig is deliberately non-secret. Rust may know tokens, keypaths, and
+// sidecar credentials; the webview only receives booleans and public origins.
 export interface PublicConfig {
   txlineApiOrigin: string
   txlineNetwork: string
@@ -18,11 +22,15 @@ export interface PublicConfig {
   axumEnabled: boolean
 }
 
+// Native export commands return a local path plus user-facing copy. The webview
+// requests the export but Rust owns filesystem writes.
 export interface ExportResult {
   path: string
   shareText: string
 }
 
+// Thin invoke wrapper. Keeping this generic function small makes it obvious
+// which named Tauri command each exported helper calls.
 export function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   return invoke<T>(name, args)
 }
@@ -48,6 +56,7 @@ export async function observeSettlementNative(reference: string, escrowAccount?:
 }
 
 export async function startTxLine(mode: 'live' | 'mock' | 'replay', fixtureId?: string): Promise<void> {
+  // Browser mode has no privileged TxLINE ingest task to start.
   if (!native) return
   return command<void>('start_txline', { mode, fixtureId })
 }
@@ -86,6 +95,8 @@ export async function watchReferenceNative(reference: string): Promise<void> {
 
 export function onNativeEvent<T>(event: string, cb: (payload: T) => void): () => void {
   if (!native) return () => {}
+  // Tauri listen returns the unlisten function asynchronously. The active flag
+  // prevents late registration from leaking after React unmounts a subscriber.
   let active = true
   let unlisten: (() => void) | undefined
   listen<T>(event, (message) => {

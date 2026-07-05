@@ -1,3 +1,9 @@
+//! Optional Axum loopback diagnostics service.
+//!
+//! Tauri IPC remains the primary webview-to-Rust boundary. This module exposes
+//! local-only health/run diagnostics for debugging and must never become a
+//! public API surface.
+
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -17,8 +23,11 @@ use crate::ledger::LedgerStore;
 
 #[derive(Clone)]
 struct WebState {
+    // Redacted config is safe for health output.
     public_config: PublicConfig,
+    // Random per-process bearer token required for every non-health route.
     token: String,
+    // Shared ledger handle so diagnostics can inspect persisted runs.
     ledger: Arc<Mutex<LedgerStore>>,
 }
 
@@ -36,6 +45,8 @@ pub fn spawn_loopback(
     token: String,
     ledger: Arc<Mutex<LedgerStore>>,
 ) -> tauri::async_runtime::JoinHandle<()> {
+    // Fire-and-forget task; failure to bind diagnostics should not block the
+    // desktop app from launching.
     tauri::async_runtime::spawn(async move {
         let state = WebState {
             public_config,
@@ -50,6 +61,8 @@ pub fn spawn_loopback(
             .route("/rpc", post(rpc_placeholder))
             .with_state(state);
 
+        // Bind only to loopback and an OS-selected port to avoid exposing local
+        // run history or debug routes on the network.
         let Ok(listener) = tokio::net::TcpListener::bind("127.0.0.1:0").await else {
             return;
         };
@@ -61,6 +74,8 @@ pub fn spawn_loopback(
 }
 
 async fn healthz(State(state): State<WebState>) -> impl IntoResponse {
+    // Health is intentionally unauthenticated because it contains only redacted
+    // public config and product/version data.
     Json(Health {
         ok: true,
         product: "World Cup Agent Desk",
@@ -70,10 +85,13 @@ async fn healthz(State(state): State<WebState>) -> impl IntoResponse {
 }
 
 async fn list_runs(State(state): State<WebState>, headers: HeaderMap) -> impl IntoResponse {
+    // Run history is local-user data, so require the per-process bearer token.
     if !authorized(&headers, &state.token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let runs = match state.ledger.lock() {
+        // The ledger API returns typed AppError; map it into simple HTTP text for
+        // diagnostics rather than leaking internals.
         Ok(ledger) => match ledger.list_runs() {
             Ok(runs) => runs,
             Err(err) => {
@@ -92,6 +110,7 @@ async fn get_run(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    // Keep route auth identical to list_runs so tooling can share one client.
     if !authorized(&headers, &state.token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -111,6 +130,8 @@ async fn events(State(state): State<WebState>, headers: HeaderMap) -> impl IntoR
     if !authorized(&headers, &state.token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
+    // Placeholder SSE proves the diagnostics channel is alive without duplicating
+    // the Tauri event bus yet.
     let stream = IntervalStream::new(tokio::time::interval(Duration::from_secs(15))).map(|_| {
         Ok::<Event, Infallible>(
             Event::default()
@@ -125,6 +146,8 @@ async fn rpc_placeholder(State(state): State<WebState>, headers: HeaderMap) -> i
     if !authorized(&headers, &state.token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
+    // Explicitly disabled: command execution belongs to Tauri IPC unless a
+    // future protected loopback API is designed and reviewed.
     (
         StatusCode::NOT_IMPLEMENTED,
         "Use Tauri IPC for primary commands; loopback RPC is intentionally disabled in this build.",
@@ -133,6 +156,8 @@ async fn rpc_placeholder(State(state): State<WebState>, headers: HeaderMap) -> i
 }
 
 fn authorized(headers: &HeaderMap, token: &str) -> bool {
+    // Simple bearer check is enough because the server is loopback-only and the
+    // token is random per process.
     headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
