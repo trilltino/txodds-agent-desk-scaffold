@@ -1,0 +1,33 @@
+{
+  "name": "txodds-agent-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri desktop scaffold for a TxLINE World Cup app hitting markets, trading agents, and fan experiences.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:desktop": "npm run prepare:sidecars && npm run build",
+    "prepare:sidecars": "node scripts/prepare-sidecars.mjs",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "lint:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.5.0",
+    "@triton-one/yellowstone-grpc": "^4.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "bs58": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1"
+  }
+}
