@@ -9,15 +9,20 @@ export const NativeEvents = {
   chainSlot: 'chain://slot',
   chainAccount: 'chain://account',
   chainTx: 'chain://tx',
+  txoracleRoot: 'chain://txoracle-root',
+  coralMessage: 'coral://message',
+  coralSession: 'coral://session',
+  agentTrace: 'agent://trace',
+  agentSignal: 'agent://signal',
+  agentEvaluation: 'agent://evaluation',
+  web3ProofReceipt: 'web3://proof-receipt',
+  validationStatus: 'web3://validation-status',
   payIntent: 'pay://intent',
   payStatus: 'pay://status',
   settlementReceipt: 'settle://receipt',
   marketRound: 'market://round',
-  appNotification: 'app://notification'
-  // Reserved lean-track topics (docs/architecture/01-lean-e2e-architecture.md section 5):
-  // consumer://room-updated, consumer://pulse-card, web3://market-updated,
-  // web3://proof-receipt, agent://runtime-status, agent://signal,
-  // agent://decision, agent://execution, agent://evaluation
+  appNotification: 'app://notification',
+  walletStatus: 'wallet://status'
 } as const
 
 export type NativeEventName = (typeof NativeEvents)[keyof typeof NativeEvents]

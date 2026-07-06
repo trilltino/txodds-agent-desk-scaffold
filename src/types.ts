@@ -6,6 +6,10 @@
 // different judging tracks and delivery formats.
 export type TrackMode = 'settlement' | 'trading' | 'fan'
 
+// Top-level product pages. Each page maps to one user app while still sharing
+// the same TxLINE event stream and persisted run history underneath.
+export type UserAppPage = 'pulse' | 'markets' | 'agent'
+
 // Public Coral agent metadata shown in the UI. Today this is mirrored by
 // frontend fallback data and Rust built-ins; archived TOML manifests live under
 // docs/legacy-coral-agents/.
@@ -18,8 +22,8 @@ export interface CoralAgentManifest {
   description: string
 }
 
-// TxLINE event kinds normalized into one enum so live, mock, and replay
-// ingestion all drive the same UI and market engine.
+// TxLINE event kinds normalized into one enum so live ingestion and persisted
+// receipts drive the same UI and market engine.
 export type TxLineEventKind =
   | 'fixture'
   | 'score_update'
@@ -57,6 +61,14 @@ export interface TxLineEvent {
   id: string
   kind: TxLineEventKind
   fixtureId: number
+  seq?: number
+  txlineTs?: string
+  action?: string
+  confirmed?: boolean
+  participant?: string
+  period?: string
+  statKeys: string[]
+  schemaFamily?: string
   title: string
   body: string
   ts: string
@@ -66,8 +78,8 @@ export interface TxLineEvent {
   proof?: TxLineProofReceipt
 }
 
-// Rust emits ingest status for live/mock/replay streams so the UI can show
-// whether it is genuinely connected to TxLINE or running an offline fallback.
+// Rust emits ingest status for live streams so the UI can show whether it is
+// genuinely connected to TxLINE.
 export interface IngestStatus {
   source: string
   state: string
@@ -80,11 +92,39 @@ export interface TxLineProofReceipt {
   fixtureId: number
   seq?: number
   statKey?: number
+  statKeys: string[]
+  txlineTs?: string
+  epochDay?: number
   merkleRoot?: string
   statProofHash?: string
+  rootPda?: string
   txlineProgram?: string
+  rootObservedSlot?: number
+  proofPresent: boolean
+  rootPresent: boolean
+  simulationStatus: ValidationSimulationStatus
   verified: boolean
   note: string
+  raw?: unknown
+}
+
+export type ValidationSimulationStatus = 'not_started' | 'passed' | 'failed' | 'unavailable'
+
+export type TxOracleInstructionKind =
+  | 'insert_scores_root'
+  | 'insert_batch_root'
+  | 'insert_fixtures_root'
+  | 'unknown'
+
+export interface TxOracleRootEvent {
+  signature: string
+  slot: number
+  programId: string
+  instruction: TxOracleInstructionKind
+  epochDay?: number
+  merkleRoot?: string
+  rootPda?: string
+  fixtureId?: number
 }
 
 // A seller/verifier/settlement bid in the Coral-style market round.
@@ -118,10 +158,10 @@ export interface VerificationVerdict {
   checked: Array<'txline-input' | 'hash' | 'proof' | 'policy' | 'settlement'>
 }
 
-// Settlement receipt visible to the UI. The receipt may be a mock/devnet shape,
+// Settlement receipt visible to the UI. The receipt may be a Solana Pay result,
 // a CoralOS sidecar result, or a later native Solana escrow result.
 export interface SettlementReceipt {
-  rail?: 'solana_pay' | 'coralos' | 'mock' | string
+  rail?: 'solana_pay' | 'coralos' | string
   status: 'not_started' | 'escrow_created' | 'deposited' | 'released' | 'refunded'
   reference?: string
   escrowPda?: string
@@ -168,4 +208,74 @@ export interface AgentRun {
   verdict?: VerificationVerdict
   settlement?: SettlementReceipt
   timeline: Array<{ at: string; label: string; detail: string }>
+}
+
+export type CoralVerb =
+  | 'OBSERVED'
+  | 'NORMALIZED'
+  | 'ROOT_OBSERVED'
+  | 'WANT'
+  | 'AGENT_THOUGHT'
+  | 'TOOL_CALL'
+  | 'TOOL_RESULT'
+  | 'SIGNAL'
+  | 'PROOF_REQUESTED'
+  | 'PROOF_RECEIVED'
+  | 'VALIDATION_SIMULATED'
+  | 'PAYMENT_REQUIRED'
+  | 'WALLET_CONNECTED'
+  | 'PAYMENT_PROOF'
+  | 'PAYMENT_CONFIRMED'
+  | 'VERIFIED'
+  | 'SETTLED'
+  | 'EVALUATED'
+
+export interface CoralSession {
+  id: string
+  threadId: string
+  fixtureId: number
+  track: TrackMode
+  createdAt: string
+}
+
+export interface CoralMessage {
+  id: string
+  sessionId: string
+  threadId: string
+  round: number
+  from: string
+  to: string[]
+  verb: CoralVerb
+  text: string
+  payload?: unknown
+  ts: string
+}
+
+export type AgentTracePhase =
+  | 'observe'
+  | 'derive'
+  | 'tool_call'
+  | 'tool_result'
+  | 'llm_reasoning'
+  | 'decision'
+  | 'action'
+  | 'proof'
+  | 'payment'
+  | 'evaluation'
+
+export interface AgentTraceEvent {
+  id: string
+  runId: string
+  round: number
+  phase: AgentTracePhase
+  summary: string
+  payload?: unknown
+  ts: string
+}
+
+export interface WalletContext {
+  provider: 'phantom' | 'solana-pay' | 'unknown'
+  publicKey?: string
+  connected: boolean
+  cluster: 'devnet' | 'mainnet-beta'
 }

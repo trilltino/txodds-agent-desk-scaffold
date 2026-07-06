@@ -14,6 +14,8 @@ export function detectOddsMove(prev: OddsQuote[], next: OddsQuote[], thresholdPc
         id: `odds-${q.fixtureId}-${q.outcome}-${Date.now()}`,
         kind: 'odds_move',
         fixtureId: q.fixtureId,
+        statKeys: [`odds.${q.outcome}.implied_probability`],
+        schemaFamily: 'odds',
         title: `${q.outcome} moved ${movePp.toFixed(1)}pp`,
         body: `Implied probability changed from ${(old.impliedProbability * 100).toFixed(1)}% to ${(q.impliedProbability * 100).toFixed(1)}%.`,
         ts: q.ts,

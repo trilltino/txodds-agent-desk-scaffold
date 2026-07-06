@@ -4,7 +4,6 @@ set dotenv-load := true
 alias start := desktop
 alias dev := desktop
 alias d := desktop
-alias w := web
 alias c := check
 alias b := build
 
@@ -25,10 +24,6 @@ setup: install init-env prepare-sidecars
 # Start the Tauri desktop app. This is the main product path.
 desktop:
     $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"; npm run tauri:dev
-
-# Start browser-only Vite dev mode for fast UI iteration.
-web:
-    npm run dev
 
 # Prepare bundled sidecar runtime files used by Tauri builds.
 prepare-sidecars:
@@ -58,6 +53,7 @@ rust-check:
 # Syntax-check Node sidecar entrypoints.
 sidecars-check:
     node --check runtime\sidecars\coralos-bridge.mjs
+    node --check runtime\sidecars\txoracle-validation-bridge.mjs
     node --check runtime\sidecars\yellowstone-bridge.mjs
 
 # Run the local verification set.

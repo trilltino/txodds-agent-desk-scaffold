@@ -1,4 +1,5 @@
 import type { IngestStatus, TrackMode, TxLineEvent } from '../../../types'
+import { useState } from 'react'
 
 // RawTxLineFeed is the operator view of normalized TxLINE events, regardless
 // of whether they came from Rust live ingest or replay.
@@ -13,14 +14,17 @@ interface Props {
 export function RawTxLineFeed({ events, selected, ingestStatuses, onSelect, onStartRound }: Props) {
   // The component stays intentionally dumb: selecting an event and creating a
   // WANT are callbacks so backend/native mode remains controlled by App.
+  const [mode, setMode] = useState<'normalized' | 'proof' | 'raw'>('normalized')
   const primaryStatus = ingestStatuses[0]
+  const visibleEvents = mode === 'proof'
+    ? events.filter((event) => event.kind === 'proof_received' || event.proof)
+    : events
   return (
     <article className="card">
       <div className="cardHead">
-        <h2>Live TxLINE feed</h2>
+        <h2>TxLINE feed</h2>
         <span className="pill">{primaryStatus?.state ?? 'starting'}</span>
       </div>
-      <p className="muted">Live TxLINE odds and scores streamed by Rust SSE ingest are the only trigger source in desktop mode.</p>
       <div className="statusStack">
         {ingestStatuses.map((status) => (
           <div key={status.source} className="statusLine">
@@ -29,18 +33,25 @@ export function RawTxLineFeed({ events, selected, ingestStatuses, onSelect, onSt
           </div>
         ))}
       </div>
-      <div className="eventList">
-        {events.length === 0 ? (
-          <div className="emptyState">Waiting for TxLINE events from Rust.</div>
-        ) : events.map((event) => (
-          <button key={event.id} className={selected?.id === event.id ? 'event selected' : 'event'} onClick={() => onSelect(event)}>
-            <strong>{event.title}</strong>
-            <span>{event.kind} - fixture {event.fixtureId}</span>
-            <small>{event.body}</small>
+      <div className="segmented">
+        {(['normalized', 'proof', 'raw'] as const).map((value) => (
+          <button key={value} className={mode === value ? 'active' : ''} onClick={() => setMode(value)}>
+            {value}
           </button>
         ))}
       </div>
-      <button className="secondary" disabled={!selected} onClick={() => selected && onStartRound(selected)}>Create WANT from selected event</button>
+      <div className="eventList">
+        {visibleEvents.length === 0 ? (
+          <div className="emptyState">Waiting for TxLINE events.</div>
+        ) : visibleEvents.map((event) => (
+          <button key={event.id} className={selected?.id === event.id ? 'event selected' : 'event'} onClick={() => onSelect(event)}>
+            <strong>{event.title}</strong>
+            <span>{event.kind} - fixture {event.fixtureId}{event.seq ? ` - seq ${event.seq}` : ''}</span>
+            <small>{mode === 'raw' ? JSON.stringify(event.raw ?? event.proof ?? event).slice(0, 240) : event.body}</small>
+          </button>
+        ))}
+      </div>
+      <button className="secondary" disabled={!selected} onClick={() => selected && onStartRound(selected)}>Run selected event</button>
     </article>
   )
 }

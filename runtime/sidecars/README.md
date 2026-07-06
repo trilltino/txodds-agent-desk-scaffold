@@ -5,6 +5,7 @@ Sidecars provide backend protocol adapters for things that are awkward or unavai
 ## Files
 
 - `coralos-bridge.mjs`: newline-delimited JSON bridge for CoralOS settlement/proxy calls.
+- `txoracle-validation-bridge.mjs`: read-only validation bridge protocol for txoracle proof simulation.
 - `yellowstone-bridge.mjs`: Yellowstone gRPC subscriber using Triton's Node SDK.
 
 ## Runtime Contract

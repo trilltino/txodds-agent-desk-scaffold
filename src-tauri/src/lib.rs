@@ -30,7 +30,9 @@ use tauri::Manager;
 
 use crate::config::AppConfig;
 use crate::services::ledger::LedgerStore;
-use crate::state::{resolve_named_sidecar_path, resolve_sidecar_path, DesktopState};
+use crate::state::{
+    resolve_named_sidecar_path, resolve_resource_dir, resolve_sidecar_path, DesktopState,
+};
 
 pub fn run() {
     // Builder setup is the root composition point for plugins, managed state,
@@ -61,6 +63,9 @@ pub fn run() {
             let sidecar_path = resolve_sidecar_path(app, &config);
             let yellowstone_sidecar_path =
                 resolve_named_sidecar_path(app, "yellowstone-bridge.mjs");
+            let txoracle_validation_sidecar_path =
+                resolve_named_sidecar_path(app, "txoracle-validation-bridge.mjs");
+            let txoracle_idl_dir = resolve_resource_dir(app, &["vendor", "tx-on-chain", "idl"]);
             let yellowstone =
                 if config.triton_grpc_endpoint.is_some() && config.triton_x_token.is_some() {
                     let handle = services::chain::yellowstone::spawn(
@@ -93,8 +98,10 @@ pub fn run() {
                 ledger,
                 txline_task: Mutex::new(None),
                 yellowstone,
-                settlement_bridge: services::coral::settlement::SettlementBridge::new(
-                    sidecar_path,
+                settlement_bridge: services::coral::settlement::SettlementBridge::new(sidecar_path),
+                validation_bridge: services::proof::ValidationBridge::new(
+                    txoracle_validation_sidecar_path,
+                    txoracle_idl_dir,
                 ),
                 replay_dir,
                 export_dir,
@@ -126,6 +133,8 @@ pub fn run() {
             commands::intelligence::list_runs,
             commands::intelligence::get_run,
             commands::intelligence::list_coral_agents,
+            commands::coral::coral_list_messages,
+            commands::coral::agent_list_trace,
             commands::settlement::create_solana_pay_intent,
             commands::settlement::verify_solana_pay_intent,
             commands::settlement::list_payment_intents,

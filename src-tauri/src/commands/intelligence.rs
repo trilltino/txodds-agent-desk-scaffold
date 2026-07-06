@@ -10,12 +10,16 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::error::AppError;
 use crate::event_bus;
+use crate::services::agent;
 use crate::services::chain;
 use crate::services::coral;
+use crate::services::coralos;
+use crate::services::proof;
 use crate::services::solana_pay;
 use crate::state::DesktopState;
 use crate::types::{
-    now_iso, AgentRun, MarketRoundEvent, SettlementReceipt, TrackMode, TxLineEvent, VerdictStatus,
+    now_iso, AgentRun, CoralVerb, MarketRoundEvent, SettlementReceipt, TrackMode, TxLineEvent,
+    TxLineEventKind, VerdictStatus,
 };
 
 #[tauri::command]
@@ -28,8 +32,26 @@ pub async fn run_agent_round(
     // The market engine produces a complete deterministic run first. Settlement
     // and chain observation enrich it afterwards.
     let mut run = coral::market::run_round(trigger, track);
+    let proof_receipt = state
+        .validation_bridge
+        .receipt_for_run(&state.client, &state.config, &run)
+        .await;
+    let proof_gate = proof::gate_receipt(&run, &proof_receipt);
+    coral::market::append_timeline(
+        &mut run,
+        "PROOF_GATE",
+        format!(
+            "{}: {}",
+            if proof_gate.pass {
+                "pass"
+            } else {
+                "needs_review"
+            },
+            proof_gate.reason
+        ),
+    );
 
-    if verifier_passed(&run) {
+    if verifier_passed(&run) && proof_gate.pass {
         match solana_pay::create_intent(&state.config, &run) {
             Ok(intent) => {
                 if let Some(yellowstone) = &state.yellowstone {
@@ -61,6 +83,15 @@ pub async fn run_agent_round(
                 );
             }
         }
+    } else if verifier_passed(&run) {
+        coral::market::append_timeline(
+            &mut run,
+            "SETTLEMENT_GATE",
+            format!(
+                "blocked until txoracle proof gate passes: {}",
+                proof_gate.reason
+            ),
+        );
     }
 
     if let Some(reference) = run
@@ -217,6 +248,44 @@ pub async fn run_agent_round(
         ledger.upsert_run(&run)?;
     }
 
+    let round = run.timeline.len() as u64;
+    let session = coralos::protocol::start_session(&run.run_id, run.trigger.fixture_id, run.track);
+    let artifacts = agent::runtime::build_artifacts(&session, round, &run, &proof_receipt);
+    let _ = app.emit(event_bus::CORAL_SESSION, &session);
+    for message in &artifacts.messages {
+        let _ = app.emit(event_bus::CORAL_MESSAGE, message);
+        match &message.verb {
+            CoralVerb::Signal => {
+                let _ = app.emit(event_bus::AGENT_SIGNAL, message);
+            }
+            CoralVerb::Evaluated => {
+                let _ = app.emit(event_bus::AGENT_EVALUATION, message);
+            }
+            _ => {}
+        }
+    }
+    for trace in &artifacts.trace {
+        let _ = app.emit(event_bus::AGENT_TRACE, trace);
+    }
+    let _ = app.emit(event_bus::WEB3_PROOF_RECEIPT, &proof_receipt);
+    let _ = app.emit(
+        event_bus::VALIDATION_STATUS,
+        serde_json::json!({
+            "runId": &run.run_id,
+            "status": &proof_receipt.simulation_status,
+            "verified": proof_receipt.verified,
+            "note": &proof_receipt.note
+        }),
+    );
+    let _ = app.emit(event_bus::TXLINE_EVENT, proof_event(&run, &proof_receipt));
+    let _ = coralos::transcript::persist_run_artifacts(
+        &state.replay_dir,
+        &run.run_id,
+        &artifacts.messages,
+        &artifacts.trace,
+        Some(&proof_receipt),
+    );
+
     for item in &run.timeline {
         // Replay the complete timeline as live events. Newer UI can animate
         // phases, while current UI receives the final run response.
@@ -243,6 +312,33 @@ pub async fn run_agent_round(
     );
 
     Ok(run)
+}
+
+fn proof_event(run: &AgentRun, proof: &crate::types::TxLineProofReceipt) -> TxLineEvent {
+    TxLineEvent {
+        id: format!("proof-{}-{}", run.run_id, uuid::Uuid::new_v4()),
+        kind: TxLineEventKind::ProofReceived,
+        fixture_id: proof.fixture_id,
+        seq: proof.seq,
+        txline_ts: proof.txline_ts.clone(),
+        action: Some("ProofReceived".to_string()),
+        confirmed: Some(proof.verified),
+        participant: None,
+        period: None,
+        stat_keys: proof.stat_keys.clone(),
+        schema_family: Some("proof".to_string()),
+        title: if proof.verified {
+            "TxLINE proof verified".to_string()
+        } else {
+            "TxLINE proof pending".to_string()
+        },
+        body: proof.note.clone(),
+        ts: now_iso(),
+        raw: proof.raw.clone(),
+        odds: None,
+        score: None,
+        proof: Some(proof.clone()),
+    }
 }
 
 #[tauri::command]

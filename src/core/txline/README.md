@@ -1,13 +1,13 @@
 # src/core/txline
 
-Browser-dev TxLINE helpers provide mock and fallback event utilities for UI iteration.
+TxLINE helpers normalize live payloads for the desktop app. Direct browser data
+access is blocked; Rust owns TxLINE credentials and ingestion.
 
 ## Files
 
-- `client.ts`: browser fallback client.
+- `client.ts`: fail-closed browser boundary.
 - `events.ts`: event normalization helpers.
 - `fixtures.ts`: fixture snapshot shaping helpers.
-- `mock.ts`: mock World Cup event fixtures.
 
 ## Rules
 

@@ -129,6 +129,8 @@ export async function loadFixtureEvent(fixture: Fixture): Promise<TxLineEvent> {
     id: `fixture-${fixture.fixtureId}-${Date.now()}`,
     kind: odds.length > 0 ? 'odds_update' : 'fixture',
     fixtureId: fixture.fixtureId,
+    statKeys: odds.length > 0 ? ['odds.snapshot'] : ['fixture.snapshot'],
+    schemaFamily: odds.length > 0 ? 'odds' : 'fixtures',
     title: `${fixture.home} vs ${fixture.away}${scoreline}`,
     body: `${fixture.competition ?? 'TxLINE'} | kickoff ${kickoff} | live snapshot: ${odds.length} odds quotes${score ? `, score ${score.home}-${score.away}` : ''}`,
     ts: new Date().toISOString(),

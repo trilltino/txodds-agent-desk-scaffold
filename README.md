@@ -34,13 +34,12 @@ Common recipes:
 | Command | Purpose |
 | --- | --- |
 | `just desktop` | Start the native Tauri desktop app. |
-| `just web` | Start browser-only Vite mode for UI iteration. |
 | `just txline-onboard` | Mint free-tier TxLINE credentials into `.env`. |
 | `just check` | Run TypeScript, Rust, and sidecar checks. |
 | `just build` | Build webview assets and prepare sidecars. |
 | `just tauri-build` | Build the packaged desktop app/installer. |
 
-With `TXLINE_GUEST_JWT` and `TXLINE_API_TOKEN`, native mode starts live TxLINE odds and scores SSE streams from Rust. Missing credentials surface as a visible `credentials_required` ingest status. Browser-only mode uses mock data because TxLINE and Triton credentials must not enter the webview bundle.
+With `TXLINE_GUEST_JWT` and `TXLINE_API_TOKEN`, the desktop app starts live TxLINE odds and scores SSE streams from Rust. Missing credentials surface as a visible `credentials_required` ingest status. Direct browser preview and browser-owned data paths are intentionally blocked; TxLINE, Triton, Yellowstone, and txoracle validation stay Rust/sidecar-owned.
 
 ## Product Surfaces
 

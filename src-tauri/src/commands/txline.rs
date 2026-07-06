@@ -18,6 +18,12 @@ pub async fn start_txline(
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<(), AppError> {
+    if mode != "live" {
+        return Err(AppError::InvalidInput(
+            "TxLINE ingest is live-only in the desktop app".to_string(),
+        ));
+    }
+
     // Only one TxLINE task should own event emission at a time.
     {
         let mut task = state

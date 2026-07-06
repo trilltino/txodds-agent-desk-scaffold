@@ -1,7 +1,8 @@
-//! TxLINE live/mock/replay ingestion.
+//! TxLINE live ingestion.
 //!
-//! Live mode owns TxLINE credentials in Rust, mock mode keeps demos offline, and
-//! replay mode re-emits previously recorded JSONL events.
+//! The desktop app is live-data-only: Rust owns TxLINE credentials and streams
+//! odds/scores SSE events to the webview. JSONL writes are diagnostic replays of
+//! real live events, not an alternate app data source.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -15,12 +16,12 @@ use tokio::io::AsyncWriteExt;
 
 use crate::config::AppConfig;
 use crate::event_bus;
-use crate::types::{mock_events, now_iso, OddsQuote, Score, TxLineEvent, TxLineEventKind};
+use crate::types::{now_iso, OddsQuote, Score, TxLineEvent, TxLineEventKind};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct IngestStatus {
-    // Source is live/mock/replay so the UI can report the active ingest mode.
+    // Source identifies the live stream, e.g. live:odds or live:scores.
     source: String,
     state: String,
     detail: String,
@@ -37,54 +38,17 @@ pub fn spawn_txline(
     // Spawn one independent task per requested mode. lib.rs owns task
     // cancellation when switching modes.
     tauri::async_runtime::spawn(async move {
-        match mode.as_str() {
-            "live" => live_loop(app, client, config, replay_dir, fixture_id).await,
-            "replay" => replay_loop(app, replay_dir, fixture_id).await,
-            _ => mock_loop(app).await,
-        }
-    })
-}
-
-async fn mock_loop(app: AppHandle) {
-    // Mock mode emits built-in events with a short delay to resemble a live feed.
-    emit_status(&app, "mock", "connected", "Rust mock TxLINE stream active");
-    for event in mock_events() {
-        emit_event(&app, event);
-        tokio::time::sleep(Duration::from_millis(800)).await;
-    }
-    emit_status(&app, "mock", "stopped", "mock stream completed");
-}
-
-async fn replay_loop(app: AppHandle, replay_dir: PathBuf, fixture_id: Option<String>) {
-    // Replay mode is judging-day insurance: the app can demonstrate real event
-    // shapes without a live TxLINE connection.
-    emit_status(&app, "replay", "connected", "Rust replay stream active");
-    let fixture = fixture_id.unwrap_or_else(|| "default".to_string());
-    let path = replay_dir.join(format!("{fixture}.jsonl"));
-    let contents = match tokio::fs::read_to_string(&path).await {
-        Ok(contents) => contents,
-        Err(_) => {
+        if mode == "live" {
+            live_loop(app, client, config, replay_dir, fixture_id).await;
+        } else {
             emit_status(
                 &app,
-                "replay",
-                "reconnecting",
-                "no replay found; falling back to built-in mock events",
+                "live",
+                "failed",
+                "TxLINE ingest is live-only; alternate non-live modes are disabled",
             );
-            mock_loop(app).await;
-            return;
         }
-    };
-
-    // JSONL keeps replay append simple and lets corrupted lines be reported
-    // without dropping the whole replay file.
-    for line in contents.lines().filter(|line| !line.trim().is_empty()) {
-        match serde_json::from_str::<TxLineEvent>(line) {
-            Ok(event) => emit_event(&app, event),
-            Err(err) => emit_status(&app, "replay", "reconnecting", &err.to_string()),
-        }
-        tokio::time::sleep(Duration::from_millis(450)).await;
-    }
-    emit_status(&app, "replay", "stopped", "replay stream completed");
+    })
 }
 
 async fn live_loop(
@@ -131,7 +95,9 @@ async fn live_loop(
         fixture_id.clone(),
         "odds",
     );
-    let scores = live_stream_loop(app, client, replay_dir, origin, jwt, token, fixture_id, "scores");
+    let scores = live_stream_loop(
+        app, client, replay_dir, origin, jwt, token, fixture_id, "scores",
+    );
     tokio::join!(odds, scores);
 }
 
@@ -271,20 +237,59 @@ fn parse_sse_block(stream: &str, block: &str) -> Option<TxLineEvent> {
     let fixture_id = extract_u64(
         &raw,
         &[
+            "FixtureId",
             "fixtureId",
             "fixture_id",
+            "MatchId",
             "fixture",
             "matchId",
             "gameId",
+            "Id",
             "id",
         ],
     )
     .unwrap_or(0);
-    let title = extract_string(&raw, &["title", "headline", "event", "type"])
-        .or(sse_event)
-        .unwrap_or_else(|| format!("{stream} update"));
-    let body = extract_string(&raw, &["body", "message", "description", "summary"])
-        .unwrap_or_else(|| "Live TxLINE SSE event received by Rust".to_string());
+    let title = extract_string(
+        &raw,
+        &[
+            "Title", "Headline", "Event", "Type", "Action", "title", "headline", "event", "type",
+            "action",
+        ],
+    )
+    .or(sse_event)
+    .unwrap_or_else(|| format!("{stream} update"));
+    let body = extract_string(
+        &raw,
+        &[
+            "Body",
+            "Message",
+            "Description",
+            "Summary",
+            "body",
+            "message",
+            "description",
+            "summary",
+        ],
+    )
+    .unwrap_or_else(|| "Live TxLINE SSE event received by Rust".to_string());
+    let seq = extract_u64(&raw, &["Seq", "seq", "Sequence", "sequence"]);
+    let txline_ts = extract_string(&raw, &["Ts", "ts", "Timestamp", "timestamp"]);
+    let action = extract_string(&raw, &["Action", "action", "Type", "type"]);
+    let confirmed = extract_bool(&raw, &["Confirmed", "confirmed"]);
+    let participant = extract_string(
+        &raw,
+        &[
+            "Participant",
+            "participant",
+            "Team",
+            "team",
+            "Player",
+            "player",
+        ],
+    );
+    let period = extract_string(&raw, &["Period", "period", "Phase", "phase"]);
+    let stat_keys = stat_keys(stream, &raw, &action);
+    let schema_family = Some(if stream == "scores" { "scores" } else { "odds" }.to_string());
     let odds = (stream == "odds")
         .then(|| parse_odds(&raw, fixture_id))
         .flatten();
@@ -298,6 +303,14 @@ fn parse_sse_block(stream: &str, block: &str) -> Option<TxLineEvent> {
         }),
         kind,
         fixture_id,
+        seq,
+        txline_ts,
+        action,
+        confirmed,
+        participant,
+        period,
+        stat_keys,
+        schema_family,
         title,
         body,
         ts: now_iso(),
@@ -330,9 +343,22 @@ fn event_kind(stream: &str, title: &str, raw: &Value) -> TxLineEventKind {
     let needle = format!(
         "{} {}",
         title.to_ascii_lowercase(),
-        extract_string(raw, &["kind", "eventType", "event_type", "status"])
-            .unwrap_or_default()
-            .to_ascii_lowercase()
+        extract_string(
+            raw,
+            &[
+                "Action",
+                "action",
+                "Kind",
+                "kind",
+                "EventType",
+                "eventType",
+                "event_type",
+                "Status",
+                "status"
+            ]
+        )
+        .unwrap_or_default()
+        .to_ascii_lowercase()
     );
     if needle.contains("goal") {
         TxLineEventKind::Goal
@@ -363,13 +389,30 @@ fn parse_odds(raw: &Value, fixture_id: u64) -> Option<Vec<OddsQuote>> {
                 return None;
             }
             Some(OddsQuote {
-                fixture_id: extract_u64(item, &["fixtureId", "fixture_id"]).unwrap_or(fixture_id),
-                outcome: extract_string(item, &["outcome", "selection", "name", "side"])
-                    .unwrap_or_else(|| "unknown".to_string()),
+                fixture_id: extract_u64(item, &["FixtureId", "fixtureId", "fixture_id"])
+                    .unwrap_or(fixture_id),
+                outcome: extract_string(
+                    item,
+                    &[
+                        "Outcome",
+                        "Selection",
+                        "Name",
+                        "Side",
+                        "outcome",
+                        "selection",
+                        "name",
+                        "side",
+                    ],
+                )
+                .unwrap_or_else(|| "unknown".to_string()),
                 decimal,
                 implied_probability: 1.0 / decimal,
-                source: extract_string(item, &["source", "book", "bookmaker"]),
-                ts: extract_string(item, &["ts", "timestamp"]).unwrap_or_else(now_iso),
+                source: extract_string(
+                    item,
+                    &["Source", "Book", "Bookmaker", "source", "book", "bookmaker"],
+                ),
+                ts: extract_string(item, &["Ts", "ts", "Timestamp", "timestamp"])
+                    .unwrap_or_else(now_iso),
             })
         })
         .collect::<Vec<_>>();
@@ -387,9 +430,58 @@ fn parse_score(raw: &Value) -> Option<Score> {
 }
 
 fn parse_score_object(value: &Value) -> Option<Score> {
-    let home = extract_i64(value, &["home", "homeScore", "home_score", "homeGoals"])?;
-    let away = extract_i64(value, &["away", "awayScore", "away_score", "awayGoals"])?;
+    let home = extract_i64(
+        value,
+        &[
+            "Home",
+            "HomeScore",
+            "home",
+            "homeScore",
+            "home_score",
+            "homeGoals",
+        ],
+    )?;
+    let away = extract_i64(
+        value,
+        &[
+            "Away",
+            "AwayScore",
+            "away",
+            "awayScore",
+            "away_score",
+            "awayGoals",
+        ],
+    )?;
     Some(Score { home, away })
+}
+
+fn stat_keys(stream: &str, raw: &Value, action: &Option<String>) -> Vec<String> {
+    if let Some(keys) = raw
+        .get("StatKeys")
+        .or_else(|| raw.get("statKeys"))
+        .and_then(Value::as_array)
+    {
+        let values = keys
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::trim)
+            .filter(|key| !key.is_empty())
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        if !values.is_empty() {
+            return values;
+        }
+    }
+    if stream == "odds" {
+        return vec!["odds.stream".to_string()];
+    }
+    match action.as_deref().map(str::to_ascii_lowercase) {
+        Some(action) if action.contains("goal") => {
+            vec!["score.home".to_string(), "score.away".to_string()]
+        }
+        Some(action) if action.contains("card") => vec!["discipline.cards".to_string()],
+        _ => vec!["scores.stream".to_string()],
+    }
 }
 
 fn extract_string(value: &Value, keys: &[&str]) -> Option<String> {
@@ -408,6 +500,21 @@ fn extract_u64(value: &Value, keys: &[&str]) -> Option<u64> {
         value.get(*key).and_then(|item| {
             item.as_u64()
                 .or_else(|| item.as_str().and_then(|text| text.parse::<u64>().ok()))
+        })
+    })
+}
+
+fn extract_bool(value: &Value, keys: &[&str]) -> Option<bool> {
+    keys.iter().find_map(|key| {
+        value.get(*key).and_then(|item| {
+            item.as_bool().or_else(|| {
+                item.as_str()
+                    .and_then(|text| match text.to_ascii_lowercase().as_str() {
+                        "true" | "1" | "yes" => Some(true),
+                        "false" | "0" | "no" => Some(false),
+                        _ => None,
+                    })
+            })
         })
     })
 }

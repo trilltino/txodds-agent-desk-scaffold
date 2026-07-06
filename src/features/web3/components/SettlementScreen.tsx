@@ -46,7 +46,6 @@ export function SettlementScreen({ run }: { run?: AgentRun }) {
         <h2>Verified Markets</h2>
         <span className="pill">{settlement?.rail ?? 'solana_pay'}</span>
       </div>
-      <p className="muted">Solana Pay is the primary devnet payment and proof rail. CoralOS can enrich the receipt when configured.</p>
       {paymentUrl ? (
         <div className="payGrid">
           <div className="qrBox">

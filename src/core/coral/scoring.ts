@@ -1,7 +1,7 @@
 import type { AgentBid, TrackMode } from '../../types'
 
-// Score a bid by confidence, price, ETA, and role/track fit. This intentionally
-// stays deterministic so browser fallback and Rust behavior are explainable.
+// Score a bid by confidence, price, ETA, and role/track fit. This mirrors the
+// deterministic Rust round scoring used by the desktop app.
 export function scoreBid(track: TrackMode, bid: AgentBid): number {
   // Role boost is where specialized strategies start: trading favors sharp/risk
   // sellers, settlement favors settlement/verifier, and fan mode favors pundits.

@@ -242,7 +242,10 @@ fn handle_sidecar_line(app: &AppHandle, line: &str) {
             );
         }
         Some("tx") => {
-            let _ = app.emit(event_bus::CHAIN_TX, value.get("payload").cloned().unwrap_or(value));
+            let _ = app.emit(
+                event_bus::CHAIN_TX,
+                value.get("payload").cloned().unwrap_or(value),
+            );
         }
         _ => {}
     }

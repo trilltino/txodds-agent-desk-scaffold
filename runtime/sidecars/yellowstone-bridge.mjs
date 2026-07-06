@@ -176,6 +176,8 @@ function handleUpdate(data) {
         isVote: !!tx.isVote,
         index: Number(tx.index ?? 0),
         err: tx.meta?.err ? JSON.stringify(tx.meta.err) : undefined,
+        accountKeys: extractAccountKeys(tx).slice(0, 64),
+        instructions: extractInstructions(tx).slice(0, 24),
         ts: new Date().toISOString(),
       },
     })
@@ -195,6 +197,30 @@ function handleUpdate(data) {
       },
     })
   }
+}
+
+function extractAccountKeys(tx) {
+  const message = tx.transaction?.message ?? tx.message
+  const keys = message?.accountKeys ?? message?.staticAccountKeys ?? []
+  return keys.map(encodeBytes).filter(Boolean)
+}
+
+function extractInstructions(tx) {
+  const message = tx.transaction?.message ?? tx.message
+  const keys = extractAccountKeys(tx)
+  const instructions = message?.instructions ?? message?.compiledInstructions ?? []
+  return instructions.map((ix, index) => {
+    const programIndex = Number(ix.programIdIndex ?? ix.program_id_index ?? -1)
+    const accountIndexes = Array.from(ix.accounts ?? ix.accountKeyIndexes ?? [])
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item))
+    return {
+      index,
+      programId: keys[programIndex],
+      accounts: accountIndexes.map((item) => keys[item]).filter(Boolean).slice(0, 16),
+      data: encodeBytes(ix.data),
+    }
+  })
 }
 
 async function writeRequest(request) {

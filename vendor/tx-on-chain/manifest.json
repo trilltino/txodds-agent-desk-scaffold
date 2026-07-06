@@ -1,0 +1,15 @@
+{
+  "upstream": "https://github.com/txodds/tx-on-chain",
+  "commit": "93c558f434f1923bbc568a5eaa51207d0d7a6b0f",
+  "fetchedAt": "2026-07-06T00:00:00.000Z",
+  "mode": "source-pin-with-vendored-idl",
+  "note": "This repo pins the official tx-on-chain source and vendors the txoracle IDLs used by the read-only validation sidecar. Schemas/types remain source-pinned until the sync/codegen tool lands.",
+  "artifacts": [
+    "idl/txoracle.mainnet.json",
+    "idl/txoracle.devnet.json",
+    "assets/scores/schemas",
+    "documentation/examples/onchain-validation.mdx",
+    "documentation/examples/streaming-data.mdx",
+    "documentation/scores/soccer-feed.mdx"
+  ]
+}

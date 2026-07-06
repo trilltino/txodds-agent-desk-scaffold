@@ -1,11 +1,23 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { AgentRun, CoralAgentManifest, IngestStatus, SolanaPayIntent, TrackMode, TxLineEvent } from '../types'
+import type {
+  AgentRun,
+  AgentTraceEvent,
+  CoralAgentManifest,
+  CoralMessage,
+  CoralSession,
+  IngestStatus,
+  SolanaPayIntent,
+  TrackMode,
+  TxLineEvent,
+  TxLineProofReceipt,
+  TxOracleRootEvent
+} from '../types'
 import type { ChainStatus, Cluster, TritonObservation } from '../core/chain/client'
 import { NativeEvents } from './events'
 
-// Runtime feature flag used by domain helpers to choose Tauri IPC in desktop
-// mode and browser fallback logic during plain Vite development.
+// Runtime feature flag used to block direct browser rendering. The app's data
+// and privileged operations are desktop-only.
 export const native = isTauri()
 
 // PublicConfig is deliberately non-secret. Rust may know tokens, keypaths, and
@@ -47,6 +59,14 @@ export async function listCoralAgentsNative(): Promise<CoralAgentManifest[]> {
   return command<CoralAgentManifest[]>('list_coral_agents')
 }
 
+export async function listCoralMessagesNative(runId: string): Promise<CoralMessage[]> {
+  return command<CoralMessage[]>('coral_list_messages', { runId })
+}
+
+export async function listAgentTraceNative(runId: string): Promise<AgentTraceEvent[]> {
+  return command<AgentTraceEvent[]>('agent_list_trace', { runId })
+}
+
 export async function chainRpcNative<T>(cluster: Cluster, method: string, params: unknown[] = []): Promise<T> {
   return command<T>('chain_rpc', { cluster, method, params })
 }
@@ -59,14 +79,13 @@ export async function observeSettlementNative(reference: string, escrowAccount?:
   return command<TritonObservation>('observe_settlement', { reference, escrowAccount })
 }
 
-export async function startTxLine(mode: 'live' | 'mock' | 'replay', fixtureId?: string): Promise<void> {
-  // Browser mode has no privileged TxLINE ingest task to start.
-  if (!native) return
-  return command<void>('start_txline', { mode, fixtureId })
+export async function startTxLine(fixtureId?: string): Promise<void> {
+  if (!native) throw new Error('World Cup Agent Desk requires the Tauri desktop runtime')
+  return command<void>('start_txline', { mode: 'live', fixtureId })
 }
 
 export async function stopTxLine(): Promise<void> {
-  if (!native) return
+  if (!native) throw new Error('World Cup Agent Desk requires the Tauri desktop runtime')
   return command<void>('stop_txline')
 }
 
@@ -178,3 +197,8 @@ export const onIngestStatus = (cb: (status: IngestStatus) => void) => onNativeEv
 export const onSolanaPayIntent = (cb: (intent: SolanaPayIntent) => void) => onNativeEvent<SolanaPayIntent>(NativeEvents.payIntent, cb)
 export const onSolanaPayStatus = (cb: (intent: SolanaPayIntent) => void) => onNativeEvent<SolanaPayIntent>(NativeEvents.payStatus, cb)
 export const onChainSlot = (cb: (status: ChainStatus) => void) => onNativeEvent<ChainStatus>(NativeEvents.chainSlot, cb)
+export const onCoralSession = (cb: (session: CoralSession) => void) => onNativeEvent<CoralSession>(NativeEvents.coralSession, cb)
+export const onCoralMessage = (cb: (message: CoralMessage) => void) => onNativeEvent<CoralMessage>(NativeEvents.coralMessage, cb)
+export const onAgentTrace = (cb: (trace: AgentTraceEvent) => void) => onNativeEvent<AgentTraceEvent>(NativeEvents.agentTrace, cb)
+export const onProofReceipt = (cb: (receipt: TxLineProofReceipt) => void) => onNativeEvent<TxLineProofReceipt>(NativeEvents.web3ProofReceipt, cb)
+export const onTxOracleRoot = (cb: (root: TxOracleRootEvent) => void) => onNativeEvent<TxOracleRootEvent>(NativeEvents.txoracleRoot, cb)

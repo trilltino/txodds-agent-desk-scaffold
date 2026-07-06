@@ -13,7 +13,7 @@ Rust backend modules implement the desktop app core.
 - `coral/`: market agents, state machine, and settlement bridge.
 - `ledger/`: SQLite persistence.
 - `triton/`: Solana JSON-RPC and Yellowstone observation.
-- `txline/`: TxLINE ingestion, mock/replay/live event flow.
+- `txline/`: live TxLINE ingestion and documented data/proof API helpers.
 
 ## Rules
 

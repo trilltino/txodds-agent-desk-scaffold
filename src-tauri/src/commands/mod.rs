@@ -11,9 +11,11 @@
 //!   the Match Intelligence runtime lands in PR 5).
 //! - `settlement`: Solana Pay intent creation/verification.
 //! - `exports`: hash receipts and fan-card file exports.
+//! - `coral`: replayable Coral transcript and agent trace reads.
 
 pub mod chain;
 pub mod config;
+pub mod coral;
 pub mod exports;
 pub mod intelligence;
 pub mod settlement;

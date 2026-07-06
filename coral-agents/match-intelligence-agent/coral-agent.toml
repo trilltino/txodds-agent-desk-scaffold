@@ -1,0 +1,23 @@
+[agent]
+name = "match-intelligence-agent"
+display_name = "Match Intelligence Agent"
+role = "autonomous-intelligence"
+service = "txodds.match-intelligence"
+
+[runtime]
+mode = "rust"
+transport = "local-coral-session"
+trace_event = "agent://trace"
+coral_event = "coral://message"
+
+[policy]
+allow_money_decisions = false
+allow_proof_verdicts = false
+allow_settlement_release = false
+default_action = "watch"
+
+[tools]
+edge_detector = "services::agent::runtime"
+risk_policy = "services::coral::market"
+proof_gate = "services::proof"
+solana_pay = "services::solana_pay"

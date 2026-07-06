@@ -5,7 +5,7 @@ TxLINE ingestion lives in the Rust backend.
 ## Files
 
 - `api.rs`: documented TxLINE HTTP API helpers and path allowlist.
-- `ingest.rs`: live/mock/replay event generation and event emission.
+- `ingest.rs`: live SSE ingestion and event emission.
 - `mod.rs`: module exports.
 
 ## Documented API Surface
@@ -34,5 +34,5 @@ Live streams stay under `start_txline`:
 - Rust owns live TxLINE credentials and network calls.
 - Data calls use `Authorization: Bearer <guest JWT>` plus `X-Api-Token`.
 - Generic `fetch_txline` is allowlisted to documented GET data/proof endpoints only.
-- Mock and replay modes should emit the same event shape as live mode.
+- Mock and replay modes are disabled at the command boundary; live TxLINE is the only app ingest mode.
 - Emit status events whenever ingestion connects, stops, or fails.

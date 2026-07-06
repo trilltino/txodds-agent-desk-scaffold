@@ -1,13 +1,14 @@
 # src/core/chain
 
-Browser-dev chain helpers keep the frontend usable outside Tauri.
+Typed chain contracts and desktop-only helper wrappers.
 
 ## Files
 
-- `client.ts`: Vite proxy based JSON-RPC fallback used only when native Tauri IPC is unavailable.
+- `client.ts`: forwards Solana/Triton reads to Rust IPC and fails closed outside
+  the Tauri desktop runtime.
 
 ## Rules
 
-- Production Triton calls belong in Rust under `src-tauri/src/services/chain/`.
+- Triton calls belong in Rust under `src-tauri/src/services/chain/`.
 - Tokens must never be exposed to this directory.
 - Keep method allowlists aligned with Rust's `chain_rpc` command.

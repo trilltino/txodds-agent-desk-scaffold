@@ -5,11 +5,11 @@
   "description": "Tauri desktop scaffold for a TxLINE World Cup app hitting markets, trading agents, and fan experiences.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tauri dev",
+    "dev:webview": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
     "build:desktop": "npm run prepare:sidecars && npm run build",
     "prepare:sidecars": "node tooling/prepare-sidecars.mjs",
-    "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
@@ -17,6 +17,8 @@
     "txline:onboard": "node tooling/txline-onboard.mjs"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/web3.js": "^1.98.4",
     "@tauri-apps/api": "^2.5.0",
     "@triton-one/yellowstone-grpc": "^4.0.2",
     "@vitejs/plugin-react": "^4.3.4",
@@ -29,7 +31,6 @@
   },
   "devDependencies": {
     "@solana/spl-token": "^0.4.9",
-    "@solana/web3.js": "^1.98.0",
     "@tauri-apps/cli": "^2.5.0",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",

@@ -13,6 +13,7 @@ use crate::config::AppConfig;
 use crate::services::chain::yellowstone::YellowstoneHandle;
 use crate::services::coral::settlement::SettlementBridge;
 use crate::services::ledger::LedgerStore;
+use crate::services::proof::ValidationBridge;
 
 pub struct DesktopState {
     /// Full config may contain secrets; only `PublicConfig` is returned to JS.
@@ -28,6 +29,8 @@ pub struct DesktopState {
     pub yellowstone: Option<YellowstoneHandle>,
     /// CoralOS sidecar bridge used after a run is verified.
     pub settlement_bridge: SettlementBridge,
+    /// Read-only txoracle proof validation bridge.
+    pub validation_bridge: ValidationBridge,
     /// App-data directories, not repo paths, for durable user/runtime output.
     pub replay_dir: PathBuf,
     pub export_dir: PathBuf,
@@ -77,4 +80,27 @@ pub fn resolve_named_sidecar_path(app: &tauri::App, name: &str) -> PathBuf {
     }
 
     resource_dir.join(name)
+}
+
+/// Locate a non-executable resource directory in dev or packaged layouts.
+pub fn resolve_resource_dir(app: &tauri::App, relative: &[&str]) -> PathBuf {
+    use tauri::Manager;
+
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut dev_path = cwd;
+    for segment in relative {
+        dev_path = dev_path.join(segment);
+    }
+    if dev_path.exists() {
+        return dev_path;
+    }
+
+    let mut resource_path = app
+        .path()
+        .resource_dir()
+        .unwrap_or_else(|_| PathBuf::from("."));
+    for segment in relative {
+        resource_path = resource_path.join(segment);
+    }
+    resource_path
 }

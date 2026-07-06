@@ -23,16 +23,15 @@ export function FixtureBoard({ fixtures, loading, error, selectedFixtureId, onSe
   return (
     <article className="card">
       <div className="cardHead">
-        <h2>World Cup fixtures</h2>
+        <h2>Fixtures</h2>
         <span className="pill">{loading ? 'loading' : `${fixtures.length} live`}</span>
       </div>
-      <p className="muted">Live fixtures from TxLINE /api/fixtures/snapshot for today&apos;s epoch day. Select one to pull its odds and score snapshots.</p>
       <div className="eventList">
         {error ? (
           <div className="emptyState">Fixtures snapshot failed: {error}</div>
         ) : fixtures.length === 0 ? (
           <div className="emptyState">
-            {loading ? 'Fetching fixtures from TxLINE...' : 'No fixtures returned. Run `just txline-onboard` to mint live credentials, then restart the app.'}
+            {loading ? 'Fetching fixtures from TxLINE.' : 'No fixtures returned. TxLINE credentials may be missing.'}
           </div>
         ) : fixtures.map((fixture) => (
           <button
@@ -46,7 +45,7 @@ export function FixtureBoard({ fixtures, loading, error, selectedFixtureId, onSe
           </button>
         ))}
       </div>
-      <button className="secondary" onClick={onRefresh} disabled={loading}>Refresh fixtures</button>
+      <button className="secondary" onClick={onRefresh} disabled={loading}>Refresh</button>
     </article>
   )
 }

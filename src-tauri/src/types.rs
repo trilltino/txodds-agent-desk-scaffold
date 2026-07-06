@@ -75,22 +75,61 @@ pub struct Score {
 #[serde(rename_all = "camelCase")]
 pub struct TxLineProofReceipt {
     pub fixture_id: u64,
+    #[serde(default)]
     pub seq: Option<u64>,
+    #[serde(default)]
     pub stat_key: Option<u64>,
+    #[serde(default)]
+    pub stat_keys: Vec<String>,
+    #[serde(default)]
+    pub txline_ts: Option<String>,
+    #[serde(default)]
+    pub epoch_day: Option<u32>,
+    #[serde(default)]
     pub merkle_root: Option<String>,
+    #[serde(default)]
     pub stat_proof_hash: Option<String>,
+    #[serde(default)]
+    pub root_pda: Option<String>,
+    #[serde(default)]
     pub txline_program: Option<String>,
+    #[serde(default)]
+    pub root_observed_slot: Option<u64>,
+    #[serde(default)]
+    pub proof_present: bool,
+    #[serde(default)]
+    pub root_present: bool,
+    #[serde(default)]
+    pub simulation_status: ValidationSimulationStatus,
     pub verified: bool,
     pub note: String,
+    #[serde(default)]
+    pub raw: Option<Value>,
 }
 
-// Canonical TxLINE event shape across live, replay, and mock ingestion.
+// Canonical TxLINE event shape across live ingestion and persisted receipts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TxLineEvent {
     pub id: String,
     pub kind: TxLineEventKind,
     pub fixture_id: u64,
+    #[serde(default)]
+    pub seq: Option<u64>,
+    #[serde(default)]
+    pub txline_ts: Option<String>,
+    #[serde(default)]
+    pub action: Option<String>,
+    #[serde(default)]
+    pub confirmed: Option<bool>,
+    #[serde(default)]
+    pub participant: Option<String>,
+    #[serde(default)]
+    pub period: Option<String>,
+    #[serde(default)]
+    pub stat_keys: Vec<String>,
+    #[serde(default)]
+    pub schema_family: Option<String>,
     pub title: String,
     pub body: String,
     pub ts: String,
@@ -178,7 +217,7 @@ pub enum SettlementStatus {
     Refunded,
 }
 
-// Settlement receipt from mock logic, CoralOS sidecar, or future native escrow.
+// Settlement receipt from Solana Pay, CoralOS sidecar, or future native escrow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettlementReceipt {
@@ -258,63 +297,129 @@ pub struct MarketRoundEvent {
     pub at: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValidationSimulationStatus {
+    #[default]
+    NotStarted,
+    Passed,
+    Failed,
+    Unavailable,
+}
+
+#[allow(dead_code)] // Staged txoracle decoder wire contract.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TxOracleInstructionKind {
+    InsertScoresRoot,
+    InsertBatchRoot,
+    InsertFixturesRoot,
+    Unknown,
+}
+
+#[allow(dead_code)] // Staged txoracle decoder wire contract.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxOracleRootEvent {
+    pub signature: String,
+    pub slot: u64,
+    pub program_id: String,
+    pub instruction: TxOracleInstructionKind,
+    pub epoch_day: Option<u32>,
+    pub merkle_root: Option<String>,
+    pub root_pda: Option<String>,
+    pub fixture_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CoralVerb {
+    Observed,
+    Normalized,
+    RootObserved,
+    Want,
+    AgentThought,
+    ToolCall,
+    ToolResult,
+    Signal,
+    ProofRequested,
+    ProofReceived,
+    ValidationSimulated,
+    PaymentRequired,
+    WalletConnected,
+    PaymentProof,
+    PaymentConfirmed,
+    Verified,
+    Settled,
+    Evaluated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoralSession {
+    pub id: String,
+    pub thread_id: String,
+    pub fixture_id: u64,
+    pub track: TrackMode,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoralMessage {
+    pub id: String,
+    pub session_id: String,
+    pub thread_id: String,
+    pub round: u64,
+    pub from: String,
+    #[serde(default)]
+    pub to: Vec<String>,
+    pub verb: CoralVerb,
+    pub text: String,
+    #[serde(default)]
+    pub payload: Option<Value>,
+    pub ts: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentTracePhase {
+    Observe,
+    Derive,
+    ToolCall,
+    ToolResult,
+    LlmReasoning,
+    Decision,
+    Action,
+    Proof,
+    Payment,
+    Evaluation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTraceEvent {
+    pub id: String,
+    pub run_id: String,
+    pub round: u64,
+    pub phase: AgentTracePhase,
+    pub summary: String,
+    #[serde(default)]
+    pub payload: Option<Value>,
+    pub ts: String,
+}
+
+#[allow(dead_code)] // Browser/PWA wallet context mirror; frontend owns local detection today.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletContext {
+    pub provider: String,
+    pub public_key: Option<String>,
+    pub connected: bool,
+    pub cluster: String,
+}
+
 // Millisecond-precision UTC timestamp used across timeline and event payloads.
 pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-}
-
-// Built-in mock events keep the desktop demo useful without live TxLINE access.
-pub fn mock_events() -> Vec<TxLineEvent> {
-    let ts = now_iso();
-    vec![
-        TxLineEvent {
-            id: "evt-odds-1".to_string(),
-            kind: TxLineEventKind::OddsMove,
-            fixture_id: 17_588_245,
-            title: "Brazil price shortened 6.2pp".to_string(),
-            body: "TxLINE odds moved after sustained pressure. Trigger threshold met for agent round.".to_string(),
-            ts: ts.clone(),
-            raw: None,
-            odds: Some(vec![
-                OddsQuote {
-                    fixture_id: 17_588_245,
-                    outcome: "home".to_string(),
-                    decimal: 1.82,
-                    implied_probability: 0.549,
-                    source: None,
-                    ts: ts.clone(),
-                },
-                OddsQuote {
-                    fixture_id: 17_588_245,
-                    outcome: "draw".to_string(),
-                    decimal: 3.70,
-                    implied_probability: 0.270,
-                    source: None,
-                    ts: ts.clone(),
-                },
-                OddsQuote {
-                    fixture_id: 17_588_245,
-                    outcome: "away".to_string(),
-                    decimal: 4.60,
-                    implied_probability: 0.217,
-                    source: None,
-                    ts: ts.clone(),
-                },
-            ]),
-            score: None,
-            proof: None,
-        },
-        TxLineEvent {
-            id: "evt-goal-1".to_string(),
-            kind: TxLineEventKind::Goal,
-            fixture_id: 17_588_245,
-            title: "Goal: Brazil 1-0 England".to_string(),
-            body: "Scores stream produced a goal event. Fan mode should explain match and market impact.".to_string(),
-            ts,
-            raw: None,
-            odds: None,
-            score: Some(Score { home: 1, away: 0 }),
-            proof: None,
-        },
-    ]
 }
