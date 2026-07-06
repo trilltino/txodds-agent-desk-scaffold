@@ -6,6 +6,7 @@ Integration docs explain how the app talks to external systems that are not owne
 
 - `coralos-settlement.md`: CoralOS settlement bridge behavior and expected local/proxy configuration.
 - `triton-one.md`: Triton RPC and Yellowstone observation setup notes.
+- `tx-on-chain-integration-plan.md`: Deep plan for integrating the official TxLINE/txoracle IDLs, schemas, validation examples, and API contracts.
 
 ## Rules
 

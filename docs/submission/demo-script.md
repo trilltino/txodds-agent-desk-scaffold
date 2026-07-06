@@ -1,31 +1,29 @@
-# 5-minute demo script
+# 5-Minute Demo Script
 
-## 0:00 — Problem
+## 0:00 - Problem
 
-Fans and builders now have live World Cup data, but raw data alone is not a product. Markets need settlement, traders need autonomous signals, and fans need explanations.
+Fans, builders, and operators can access TxLINE data, but raw feeds are not products. Fans need context, markets need trustworthy resolution, and operators need autonomous signal tracking.
 
-## 0:45 — Product
+## 0:45 - Product
 
-World Cup Agent Desk turns TxLINE events into agent actions. The app has three modes: Settlement Lab, Signal Arena, and Fan Mode.
+World Cup Pulse Desk turns TxLINE events into three product surfaces: Pulse Rooms, Verified Markets, and one Match Intelligence Agent. One Rust-owned event bus powers all three.
 
-## 1:20 — Live data
+## 1:20 - Live Data
 
-Show the TxLINE feed panel. Explain that the same code uses the SSE odds/scores streams; mock mode is only for review fallback.
+Show the fixture board and raw TxLINE feed. Explain that native mode uses Rust-owned SSE clients for `/api/odds/stream` and `/api/scores/stream`; browser mode is only a mock fallback for UI iteration.
 
-## 2:00 — Agent round
+## 2:00 - Pulse Rooms
 
-Click Run Agent Round. Show WANT, bids, award, delivery, verifier, settlement.
+Select a fixture event and show the Pulse Rooms panel. Explain how the same raw event becomes fan-facing copy, room moments, and future leaderboard changes.
 
-## 3:00 — Three tracks
+## 2:50 - Verified Markets
 
-- Settlement: proof receipt + escrow release.
-- Trading: sharp movement detector + risk-managed signal.
-- Fan: AI pundit card.
+Show the Verified Markets panel and proof drawer. Explain that TxLINE proves match data, Triton observes Solana state, and the tx-on-chain integration plan fills the Merkle-root/stat-validation gate.
 
-## 4:00 — Triton proof
+## 3:45 - Match Intelligence Agent
 
-Open Proof Panel. Explain: TxLINE proves match data; Triton observes Solana settlement; Explorer link proves payment/release.
+Show the Intelligence Agent panel. Explain the transition from the compatibility round to one autonomous runtime: observe, decide, act, evaluate. Point to deterministic thresholds and SQLite traces.
 
-## 4:40 — Close
+## 4:40 - Close
 
-This is not a pitch deck: it is a running app with live/simulated TxLINE input, autonomous agent logic, and a devnet proof path.
+This is not a pitch deck: it is a running desktop app with Rust-owned live TxLINE ingestion, typed Tauri events, replayable evidence, and a repo structure ready for the three E2E track builds.

@@ -1,11 +1,13 @@
 # docs/architecture
 
-Architecture notes describe how the Tauri desktop app is structured and why responsibilities are split between Rust, React, Coral agents, sidecars, and Solana/Triton integrations.
+Architecture notes describe how the Tauri desktop app is structured and why responsibilities are split between Rust, React, feature engines, sidecars, TxLINE, and Solana/Triton integrations.
 
 ## Files
 
-- `compartments.md`: source ownership boundaries and how CoralOS-style compartments map into this repo.
-- `full-tauri-app-plan.md`: end-to-end desktop implementation plan and current implementation status.
+- `01-lean-e2e-architecture.md`: active lean-track plan and current E2E UI/repo status.
+- `compartments.md`: current source ownership boundaries.
+- `full-tauri-app-plan.md`: historical full-native migration plan, kept for context.
+- `rust-agents-plan.md`: superseded multi-role agent plan, kept for history.
 
 ## Rules
 

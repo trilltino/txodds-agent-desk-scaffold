@@ -1,49 +1,8 @@
-# How the app smashes all three TxODDS tracks
+# How the app maps to the TxODDS tracks
 
-## Track 1 — Prediction Markets & Settlement
+## Consumer: Pulse Rooms
 
-### What the judges ask for
-
-- Smooth TxLINE ingestion.
-- Intuitive user experience for soccer fans or analytical users.
-- Clean deterministic resolution and validation logic.
-- Bonus for Merkle/proof receipts and custom settlement engines.
-
-### How World Cup Agent Desk hits it
-
-- **Full-Tournament Auto-Market:** fixture scheduler can create market templates for all 104 matches.
-- **Verifiable Resolution UI:** Proof Panel stores TxLINE receipt, stat/proof metadata, verifier verdict, delivery hash, escrow reference, and Explorer link.
-- **Custom settlement spine:** reuse your existing Solana escrow/arbiter path, then upgrade to CPI into TxLINE `validate_stat` when ready.
-- **Deterministic logic:** `settlement/verifier` does not ask the LLM to decide winners. It checks final score/stat predicate, proof, hash binding, and policy.
-
-### Demo line
-
-"A final-whistle TxLINE event resolves the market; the verifier checks the proof receipt; the escrow releases on devnet; Triton confirms the chain state."
-
-## Track 2 — Trading Tools & Agents
-
-### What the judges ask for
-
-- Live/simulated TxLINE ingestion.
-- Autonomous operation after deployment.
-- Clean mathematical or strategic logic.
-- Novel algorithmic sports tracking.
-- Production readiness for a trading team or B2B intermediary.
-
-### How World Cup Agent Desk hits it
-
-- **Sharp Movement Detector:** odds updates are diffed; implied-probability moves above `ODDS_MOVE_TRIGGER_PCT` create a WANT automatically.
-- **Agent vs Agent Arena:** sharp, contrarian/risk, and pundit agents compete; the buyer selects by confidence, price, ETA, and track fit.
-- **No blind betting:** the MVP logs simulated actions and risk; it is legally safer and more credible.
-- **Production angle:** strategy decisions create run ledgers and can be replayed even when no match is live.
-
-### Demo line
-
-"The odds stream moves; no human clicks anything; agents bid to analyze it; the system records the signal, risk, delivery hash, and optional simulated settlement."
-
-## Track 3 — Consumer & Fan Experiences
-
-### What the judges ask for
+### What judges ask for
 
 - Mainstream accessible UX.
 - Real-time responsiveness.
@@ -51,13 +10,53 @@
 - Commercial path.
 - Complete end-to-end feature.
 
-### How World Cup Agent Desk hits it
+### How World Cup Pulse Desk hits it
 
-- **AI Pundit Card:** every major event becomes an explanation a normal fan can understand.
-- **Phone-in-hand UX:** the Tauri desktop is the judge/operator console; the same `FanMode` payload can be exported to Telegram, web, or TTS.
-- **Originality:** not just a feed — it explains why the market moved and what the football event means.
-- **Monetization:** premium alerts, B2B fan engagement widgets, paid signal packs, verified match receipts for communities.
+- A live/replay TxLINE event becomes a consumer-readable Pulse Room moment.
+- Goals, cards, and odds moves can produce fan cards and leaderboard changes.
+- The operator can show the raw event behind the friendly card.
+- The path stays money-free and safe for mainstream fan contexts.
 
 ### Demo line
 
-"A goal arrives from TxLINE; the app instantly creates a shareable card explaining the event and odds movement in language fans understand."
+"A TxLINE match event arrives; Pulse Rooms turns it into a shareable fan moment while preserving the raw data behind it."
+
+## Web3 / Platform: Verified Markets
+
+### What judges ask for
+
+- Smooth TxLINE ingestion.
+- Clear deterministic resolution and validation logic.
+- Proof receipts and custom settlement/verification paths.
+- Honest limits around money movement and validation.
+
+### How World Cup Pulse Desk hits it
+
+- TxLINE snapshot/SSE input is normalized by Rust and recorded.
+- The proof drawer stores event input, verdict, settlement references, and chain observations.
+- The tx-on-chain plan wires this to official txoracle IDLs, Merkle roots, and `/api/scores/stat-validation`.
+- Solana Pay and Triton provide a concrete devnet receipt path while full proof gates land.
+
+### Demo line
+
+"A final or proof-ready TxLINE event resolves a fixture-bound market through a deterministic receipt, then the chain observer confirms the settlement reference."
+
+## Agent: Match Intelligence Agent
+
+### What judges ask for
+
+- Autonomous operation.
+- Clean mathematical or strategic logic.
+- Novel sports tracking.
+- Production readiness for a trading or intelligence workflow.
+
+### How World Cup Pulse Desk hits it
+
+- The active plan has one real autonomous runtime, not a fake buyer/seller debate.
+- Detectors compute odds movement, score context, proof readiness, and policy gates.
+- Decisions and evaluations are persisted to SQLite.
+- LLMs are optional explanation helpers, not decision-makers.
+
+### Demo line
+
+"The odds stream moves; the Match Intelligence Agent detects the signal, records its features, chooses an action from policy, and later evaluates the outcome."

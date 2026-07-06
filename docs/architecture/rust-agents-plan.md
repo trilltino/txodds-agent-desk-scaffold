@@ -1,5 +1,13 @@
 # Rust Agent Runtime Plan — LLM Discussion with Venice Kimi K2.7
 
+> **SUPERSEDED (2026-07-06)** by
+> [01-lean-e2e-architecture.md](01-lean-e2e-architecture.md) per
+> [ADR 0006](../adr/0006-lean-agent-runtime-no-agent-theatre.md): the active
+> runtime gets one autonomous Match Intelligence Agent instead of six role-play
+> personas. The LLM pillar (§3: Venice `complete()`, Kimi max-token floor,
+> strict-JSON guard, LLM_USED audit) carries forward into `services/llm`
+> (PR 6); the multi-role market conversation does not. Kept for history.
+
 Deep plan for replacing the deterministic template engine in
 `src-tauri/src/coral/market.rs` with **real Rust agentic flows**: per-role agent
 tasks that hold an LLM-mediated market discussion (WANT → BID → AWARD →

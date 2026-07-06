@@ -1,28 +1,30 @@
-# Product spec: World Cup Agent Desk
+# Product Spec: World Cup Pulse Desk
 
-## One-line pitch
+## One-Line Pitch
 
-World Cup Agent Desk turns TxLINE's live World Cup feed into autonomous agent work: agents explain events, detect market moves, verify outcomes, and settle devnet escrows with an auditable proof trail.
+World Cup Pulse Desk turns TxLINE live World Cup scores, odds, match events, and Solana-anchored validation data into three products powered by one normalized event bus: Pulse Rooms, Verified Markets, and one Match Intelligence Agent.
 
-## Core loop
+## Core Loop
 
-1. TxLINE SSE emits an odds/scores event.
-2. Trigger detector classifies it: goal, red card, final whistle, odds move, proof receipt.
-3. Buyer agent posts a WANT.
-4. Specialist agents bid: sharp movement, risk manager, AI pundit, settlement verifier.
-5. Buyer selects best value.
-6. Winner delivers a hash-bound artifact.
-7. Verifier checks TxLINE input, artifact hash, proof availability, and policy.
-8. Escrow releases/refunds.
-9. Triton observer confirms on-chain state.
-10. UI shows the complete evidence trail.
+1. TxLINE live/replay input produces a normalized event.
+2. Rust persists and emits the event through the app event bus.
+3. Pulse Rooms can turn the event into fan cards, room state, and leaderboard movement.
+4. Verified Markets can use final/proof events to create a deterministic verification receipt.
+5. The Match Intelligence Agent can detect signals, apply policy, act, and later evaluate whether the signal mattered.
+6. Triton/Yellowstone and Solana Pay enrich receipts with chain-observed evidence.
 
-## MVP demo path
+## MVP Demo Path
 
-- Select mock/live event.
-- Click `Run agent round`.
-- Show bids and winner.
-- Show generated signal/fan card/resolution package.
-- Show verifier pass.
-- Show escrow reference and Explorer placeholder.
-- Show where Triton will observe the release transaction.
+- Start the desktop app.
+- Select a live/replay fixture event.
+- Show raw TxLINE input in the operator feed.
+- Run the current compatibility round while the Match Intelligence runtime is staged.
+- Show Pulse Rooms copy, Verified Markets settlement/proof state, and Intelligence Agent trace.
+- Open the proof drawer to show TxLINE input, verdict, payment/settlement reference, and chain observation.
+
+## Guardrails
+
+- Consumer mode has no wagering or settlement flow.
+- Web3 proof and settlement gates are deterministic and code-owned.
+- LLM output, when added, may explain but may not decide proof, policy, or settlement.
+- TxLINE, Triton, and settlement credentials never cross into the React webview.

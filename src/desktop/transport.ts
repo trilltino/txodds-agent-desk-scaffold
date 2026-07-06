@@ -1,7 +1,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { AgentRun, CoralAgentManifest, IngestStatus, SolanaPayIntent, TrackMode, TxLineEvent } from '../types'
-import type { ChainStatus, Cluster, TritonObservation } from '../domain/triton/client'
+import type { ChainStatus, Cluster, TritonObservation } from '../core/chain/client'
+import { NativeEvents } from './events'
 
 // Runtime feature flag used by domain helpers to choose Tauri IPC in desktop
 // mode and browser fallback logic during plain Vite development.
@@ -172,8 +173,8 @@ export function onNativeEvent<T>(event: string, cb: (payload: T) => void): () =>
   }
 }
 
-export const onTxLineEvent = (cb: (event: TxLineEvent) => void) => onNativeEvent<TxLineEvent>('txline://event', cb)
-export const onIngestStatus = (cb: (status: IngestStatus) => void) => onNativeEvent<IngestStatus>('ingest://status', cb)
-export const onSolanaPayIntent = (cb: (intent: SolanaPayIntent) => void) => onNativeEvent<SolanaPayIntent>('pay://intent', cb)
-export const onSolanaPayStatus = (cb: (intent: SolanaPayIntent) => void) => onNativeEvent<SolanaPayIntent>('pay://status', cb)
-export const onChainSlot = (cb: (status: ChainStatus) => void) => onNativeEvent<ChainStatus>('chain://slot', cb)
+export const onTxLineEvent = (cb: (event: TxLineEvent) => void) => onNativeEvent<TxLineEvent>(NativeEvents.txlineEvent, cb)
+export const onIngestStatus = (cb: (status: IngestStatus) => void) => onNativeEvent<IngestStatus>(NativeEvents.ingestStatus, cb)
+export const onSolanaPayIntent = (cb: (intent: SolanaPayIntent) => void) => onNativeEvent<SolanaPayIntent>(NativeEvents.payIntent, cb)
+export const onSolanaPayStatus = (cb: (intent: SolanaPayIntent) => void) => onNativeEvent<SolanaPayIntent>(NativeEvents.payStatus, cb)
+export const onChainSlot = (cb: (status: ChainStatus) => void) => onNativeEvent<ChainStatus>(NativeEvents.chainSlot, cb)

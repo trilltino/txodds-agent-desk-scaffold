@@ -1,0 +1,11 @@
+# src/core
+
+Pure, network-free domain logic and shared contracts. Nothing here may import
+React or talk to Tauri/TxLINE/Solana directly - I/O lives behind
+`src/desktop/transport.ts` and feature hooks.
+
+- `txline/`: normalized event helpers, live fixture/odds parsing, browser mock.
+- `rooms/`, `markets/`, `proof/`, `agent/`: lean-track contracts mirrored from
+  `src-tauri/src/domain/*` (see docs/architecture/01-lean-e2e-architecture.md section 6).
+- `chain/`: chain status/observation types and browser-dev RPC fallback.
+- `coral/`: legacy browser-only round fallback kept for Vite dev without Tauri.

@@ -19,7 +19,7 @@ use tokio_stream::wrappers::IntervalStream;
 use tokio_stream::StreamExt;
 
 use crate::config::PublicConfig;
-use crate::ledger::LedgerStore;
+use crate::services::ledger::LedgerStore;
 
 #[derive(Clone)]
 struct WebState {

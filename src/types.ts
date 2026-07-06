@@ -7,8 +7,8 @@
 export type TrackMode = 'settlement' | 'trading' | 'fan'
 
 // Public Coral agent metadata shown in the UI. Today this is mirrored by
-// frontend fallback data and Rust built-ins; future work should load the TOML
-// manifests under coral-agents/ as the source of truth.
+// frontend fallback data and Rust built-ins; archived TOML manifests live under
+// docs/legacy-coral-agents/.
 export interface CoralAgentManifest {
   id: string
   displayName: string
@@ -51,7 +51,7 @@ export interface OddsQuote {
   ts: string
 }
 
-// Canonical event payload consumed by LiveFeed and the agent market. The raw
+// Canonical event payload consumed by the raw feed and track engines. The raw
 // field is preserved for debugging while normalized fields drive app behavior.
 export interface TxLineEvent {
   id: string
@@ -157,8 +157,7 @@ export interface SolanaPayIntent {
   slot?: number
 }
 
-// Full persisted market run as rendered by AgentArena, SettlementLab, FanMode,
-// and ProofPanel.
+// Full persisted market run rendered by the current feature screens.
 export interface AgentRun {
   runId: string
   track: TrackMode
