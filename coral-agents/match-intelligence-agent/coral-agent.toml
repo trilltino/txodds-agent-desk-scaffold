@@ -1,12 +1,22 @@
+edition = 4
+
 [agent]
 name = "match-intelligence-agent"
-display_name = "Match Intelligence Agent"
-role = "autonomous-intelligence"
-service = "txodds.match-intelligence"
+version = "0.1.0"
+description = "Rust-backed TxODDS Match Intelligence Agent. Joins CoralOS so the desktop Rust runtime can publish real TxLINE, txoracle, policy, and Venice explanation messages into Coral Console."
+summary = "Live TxLINE observer and txoracle-gated decision agent."
+readme = "The Docker participant connects to CoralOS and idles. The desktop Rust runtime is the brain and publishes messages as this agent through the CoralOS puppet API."
 
-[runtime]
+[agent.license]
+type = "spdx"
+expression = "MIT"
+
+[runtimes.docker]
+image = "match-intelligence-agent:0.1.0"
+
+[desktop]
 mode = "rust"
-transport = "local-coral-session"
+transport = "coralos-puppet"
 trace_event = "agent://trace"
 coral_event = "coral://message"
 
@@ -17,7 +27,7 @@ allow_settlement_release = false
 default_action = "watch"
 
 [tools]
-edge_detector = "services::agent::runtime"
-risk_policy = "services::coral::market"
+feature_extractor = "services::agent::features"
+policy = "services::agent::policy"
 proof_gate = "services::proof"
-solana_pay = "services::solana_pay"
+llm_explainer = "services::llm"

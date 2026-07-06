@@ -12,7 +12,6 @@ use crate::types::{now_iso, CoralMessage, CoralSession, CoralVerb, TrackMode};
 pub const USER_PROXY: &str = "user-proxy";
 pub const MATCH_INTELLIGENCE_AGENT: &str = "match-intelligence-agent";
 pub const PROOF_GUARD_AGENT: &str = "proof-guard-agent";
-pub const SETTLEMENT_RAIL: &str = "settlement-rail";
 
 pub fn start_session(run_id: &str, fixture_id: u64, track: TrackMode) -> CoralSession {
     let id = format!("coral-{run_id}");

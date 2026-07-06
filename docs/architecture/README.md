@@ -7,6 +7,7 @@ Architecture notes describe how the Tauri desktop app is structured and why resp
 - `01-lean-e2e-architecture.md`: active lean-track plan and current E2E UI/repo status.
 - `compartments.md`: current source ownership boundaries.
 - `full-tauri-app-plan.md`: historical full-native migration plan, kept for context.
+- `match-intelligence-agent-e2e-rust.md`: concrete E2E Rust implementation blueprint for the real live TxLINE/txoracle/Venice agent runtime.
 - `rust-agents-plan.md`: superseded multi-role agent plan, kept for history.
 
 ## Rules

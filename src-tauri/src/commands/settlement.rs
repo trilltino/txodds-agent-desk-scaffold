@@ -6,10 +6,9 @@
 
 use tauri::{AppHandle, Emitter, State};
 
-use super::intelligence::{merge_receipt, verifier_passed};
+use super::intelligence::{append_timeline, merge_receipt, verifier_passed};
 use crate::error::AppError;
 use crate::event_bus;
-use crate::services::coral;
 use crate::services::solana_pay::{self, SolanaPayIntent};
 use crate::state::DesktopState;
 
@@ -36,7 +35,7 @@ pub fn create_solana_pay_intent(
     let intent = solana_pay::create_intent(&state.config, &run)?;
     let receipt = solana_pay::receipt_from_intent(&intent);
     merge_receipt(&mut run, receipt);
-    coral::market::append_timeline(
+    append_timeline(
         &mut run,
         "SOLANA_PAY",
         format!("created devnet transfer request {}", intent.reference),
@@ -81,7 +80,7 @@ pub async fn verify_solana_pay_intent(
         ledger.upsert_payment_intent(&updated)?;
         if let Ok(mut run) = ledger.get_run(&updated.run_id) {
             merge_receipt(&mut run, solana_pay::receipt_from_intent(&updated));
-            coral::market::append_timeline(
+            append_timeline(
                 &mut run,
                 "SOLANA_PAY",
                 format!("{} reference {}", updated.status_text(), updated.reference),

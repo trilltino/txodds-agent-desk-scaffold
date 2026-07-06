@@ -11,7 +11,6 @@ use reqwest::Client;
 
 use crate::config::AppConfig;
 use crate::services::chain::yellowstone::YellowstoneHandle;
-use crate::services::coral::settlement::SettlementBridge;
 use crate::services::ledger::LedgerStore;
 use crate::services::proof::ValidationBridge;
 
@@ -27,22 +26,11 @@ pub struct DesktopState {
     pub txline_task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
     /// Optional Yellowstone supervisor; absent when gRPC config is missing.
     pub yellowstone: Option<YellowstoneHandle>,
-    /// CoralOS sidecar bridge used after a run is verified.
-    pub settlement_bridge: SettlementBridge,
     /// Read-only txoracle proof validation bridge.
     pub validation_bridge: ValidationBridge,
     /// App-data directories, not repo paths, for durable user/runtime output.
     pub replay_dir: PathBuf,
     pub export_dir: PathBuf,
-}
-
-/// Resolve the CoralOS settlement sidecar script, preferring the explicit
-/// config override for local experimentation.
-pub fn resolve_sidecar_path(app: &tauri::App, config: &AppConfig) -> PathBuf {
-    if let Some(path) = config.coralos_sidecar_path.as_deref() {
-        return PathBuf::from(path);
-    }
-    resolve_named_sidecar_path(app, "coralos-bridge.mjs")
 }
 
 /// Locate a named sidecar script across dev, legacy, and packaged layouts.

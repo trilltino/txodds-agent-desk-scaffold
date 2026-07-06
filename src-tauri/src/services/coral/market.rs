@@ -1,8 +1,10 @@
-//! Deterministic Coral-style market engine.
+//! Retired deterministic Coral-style market simulator.
 //!
-//! This module models the buyer/seller/verifier lifecycle without an LLM or
-//! external agent supervisor yet. It is the right place to split strategies into
-//! real agent handlers later.
+//! This file is kept only so historical runs and older UI affordances can still
+//! be read while the app migrates to the real Match Intelligence Agent runtime.
+//! The active `run_agent_round` command does not call this module.
+
+#![allow(dead_code)]
 
 use sha2::{Digest, Sha256};
 use uuid::Uuid;

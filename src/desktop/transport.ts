@@ -35,6 +35,10 @@ export interface PublicConfig {
   yellowstoneConfigured: boolean
   solanaPayConfigured: boolean
   coralosConfigured: boolean
+  coralosConsoleEnabled: boolean
+  llmConfigured: boolean
+  llmProvider: string
+  llmModel: string
   axumEnabled: boolean
 }
 

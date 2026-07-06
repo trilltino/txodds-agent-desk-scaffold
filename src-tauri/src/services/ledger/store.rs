@@ -7,9 +7,11 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
+use crate::domain::agent::{AgentDecision, AgentSignal};
 use crate::error::AppError;
+use crate::services::llm::LlmResponse;
 use crate::services::solana_pay::SolanaPayIntent;
-use crate::types::AgentRun;
+use crate::types::{AgentRun, TxLineEvent, TxLineProofReceipt};
 
 pub struct LedgerStore {
     // rusqlite connection is synchronous; callers protect LedgerStore with a
@@ -43,6 +45,54 @@ impl LedgerStore {
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_observations (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                fixture_id INTEGER NOT NULL,
+                event_id TEXT NOT NULL,
+                event_kind TEXT NOT NULL,
+                event_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_signals (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                fixture_id INTEGER NOT NULL,
+                signal_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_decisions (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                signal_id TEXT,
+                action TEXT NOT NULL,
+                decision_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS proof_receipts (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                fixture_id INTEGER NOT NULL,
+                seq INTEGER,
+                status TEXT NOT NULL,
+                verified INTEGER NOT NULL,
+                receipt_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_llm_calls (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                used INTEGER NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
             );
             ",
         )?;
@@ -177,5 +227,124 @@ impl LedgerStore {
                 other => AppError::Sql(other),
             })?;
         Ok(serde_json::from_str(&intent_json)?)
+    }
+
+    pub fn insert_agent_observation(
+        &self,
+        run_id: &str,
+        event: &TxLineEvent,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "
+            INSERT INTO agent_observations
+                (id, run_id, fixture_id, event_id, event_kind, event_json, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ON CONFLICT(id) DO UPDATE SET event_json = excluded.event_json
+            ",
+            params![
+                format!("{run_id}:{}", event.id),
+                run_id,
+                event.fixture_id,
+                event.id,
+                format!("{:?}", event.kind),
+                serde_json::to_string(event)?,
+                event.ts
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_agent_signal(&self, run_id: &str, signal: &AgentSignal) -> Result<(), AppError> {
+        self.conn.execute(
+            "
+            INSERT INTO agent_signals (id, run_id, fixture_id, signal_json, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(id) DO UPDATE SET signal_json = excluded.signal_json
+            ",
+            params![
+                signal.id,
+                run_id,
+                signal.fixture_id,
+                serde_json::to_string(signal)?,
+                signal.created_at
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_agent_decision(
+        &self,
+        run_id: &str,
+        decision: &AgentDecision,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "
+            INSERT INTO agent_decisions (id, run_id, signal_id, action, decision_json, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT(id) DO UPDATE SET decision_json = excluded.decision_json
+            ",
+            params![
+                decision.id,
+                run_id,
+                decision.signal_id,
+                format!("{:?}", decision.action),
+                serde_json::to_string(decision)?,
+                decision.created_at
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_proof_receipt(
+        &self,
+        run_id: &str,
+        receipt: &TxLineProofReceipt,
+    ) -> Result<(), AppError> {
+        self.conn.execute(
+            "
+            INSERT INTO proof_receipts
+                (id, run_id, fixture_id, seq, status, verified, receipt_json, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ON CONFLICT(id) DO UPDATE SET receipt_json = excluded.receipt_json
+            ",
+            params![
+                format!(
+                    "{run_id}:{}:{}",
+                    receipt.fixture_id,
+                    receipt
+                        .seq
+                        .map(|seq| seq.to_string())
+                        .unwrap_or_else(|| "none".to_string())
+                ),
+                run_id,
+                receipt.fixture_id,
+                receipt.seq,
+                format!("{:?}", receipt.simulation_status),
+                receipt.verified,
+                serde_json::to_string(receipt)?,
+                crate::types::now_iso()
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_llm_call(&self, run_id: &str, response: &LlmResponse) -> Result<(), AppError> {
+        self.conn.execute(
+            "
+            INSERT INTO agent_llm_calls
+                (id, run_id, provider, model, used, response_json, created_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ",
+            params![
+                format!("{run_id}:{}", uuid::Uuid::new_v4()),
+                run_id,
+                response.provider,
+                response.model,
+                response.used,
+                serde_json::to_string(response)?,
+                crate::types::now_iso()
+            ],
+        )?;
+        Ok(())
     }
 }

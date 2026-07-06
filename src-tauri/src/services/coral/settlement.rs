@@ -2,6 +2,12 @@
 //!
 //! Rust owns the policy boundary and process supervision. The Node sidecar adapts
 //! to existing CoralOS/TxODDS routes and returns a normalized receipt.
+//!
+//! This bridge is dormant in the read-only Match Intelligence Agent path. Keep
+//! it available for explicit future settlement work, but do not wire it into
+//! agent execution until proof-passed settlement requirements are reintroduced.
+
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;

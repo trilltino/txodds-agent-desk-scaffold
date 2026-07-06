@@ -1,9 +1,8 @@
-//! Legacy Coral round engine and CoralOS settlement bridge.
+//! Coral compatibility utilities and the CoralOS settlement bridge.
 //!
-//! Kept as the compatibility path behind `run_agent_round` until the Match
-//! Intelligence Agent replaces it (PR 5; see
-//! docs/adr/0006-lean-agent-runtime-no-agent-theatre.md). New product code
-//! should not grow here.
+//! The active intelligence path lives in `services::agent::runtime`; it does
+//! not call the legacy market simulator. New product code should grow in the
+//! agent modules, while this namespace keeps older settlement helpers available.
 
 pub mod agents;
 pub mod market;

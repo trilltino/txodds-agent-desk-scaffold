@@ -36,11 +36,22 @@ pub struct AppConfig {
     pub watch_escrow_account: Option<String>,
     pub coralos_root: Option<String>,
     pub coralos_bridge_url: Option<String>,
+    // Retained for the dormant CoralOS settlement bridge, not the read-only
+    // Match Intelligence Agent path.
+    #[allow(dead_code)]
     pub coralos_proxy_url: String,
     pub coralos_server_url: String,
     pub coralos_token: String,
+    pub coralos_namespace: String,
+    pub coralos_session_id: Option<String>,
+    pub coralos_console_enabled: bool,
+    #[allow(dead_code)]
     pub coralos_sidecar_path: Option<String>,
     pub coralos_settlement_enabled: bool,
+    pub llm_provider: String,
+    pub llm_model: String,
+    pub venice_api_key: Option<String>,
+    pub llm_trace: bool,
     pub odds_move_trigger_pct: f64,
     pub max_devnet_spend_sol: f64,
     pub axum_enabled: bool,
@@ -64,6 +75,10 @@ pub struct PublicConfig {
     pub yellowstone_configured: bool,
     pub solana_pay_configured: bool,
     pub coralos_configured: bool,
+    pub coralos_console_enabled: bool,
+    pub llm_configured: bool,
+    pub llm_provider: String,
+    pub llm_model: String,
     pub axum_enabled: bool,
 }
 
@@ -97,8 +112,15 @@ impl AppConfig {
             coralos_proxy_url: env_or_default("CORALOS_TXODDS_PROXY", "http://localhost:8801"),
             coralos_server_url: env_or_default("CORAL_SERVER_URL", "http://localhost:5555"),
             coralos_token: env_or_default("CORAL_TOKEN", "dev"),
+            coralos_namespace: env_or_default("CORALOS_NAMESPACE", "default"),
+            coralos_session_id: optional_env("CORALOS_SESSION_ID"),
+            coralos_console_enabled: bool_env("CORALOS_CONSOLE_ENABLED", true),
             coralos_sidecar_path: optional_env("CORALOS_SIDECAR_PATH"),
             coralos_settlement_enabled: bool_env("CORALOS_SETTLEMENT_ENABLED", true),
+            llm_provider: env_or_default("LLM_PROVIDER", "venice"),
+            llm_model: env_or_default("LLM_MODEL", "default"),
+            venice_api_key: secret("VENICE_API_KEY", "venice_api_key"),
+            llm_trace: bool_env("LLM_TRACE", bool_env("TRACE", false)),
             odds_move_trigger_pct: number_env("ODDS_MOVE_TRIGGER_PCT", 5.0),
             max_devnet_spend_sol: number_env("MAX_DEVNET_SPEND_SOL", 0.05),
             axum_enabled: bool_env("DESK_AXUM_ENABLED", false),
@@ -125,6 +147,10 @@ impl AppConfig {
                 && self.solana_cluster.eq_ignore_ascii_case("devnet"),
             coralos_configured: self.coralos_settlement_enabled
                 && (self.coralos_bridge_url.is_some() || self.coralos_root.is_some()),
+            coralos_console_enabled: self.coralos_console_enabled,
+            llm_configured: self.venice_api_key.is_some(),
+            llm_provider: self.llm_provider.clone(),
+            llm_model: self.llm_model.clone(),
             axum_enabled: self.axum_enabled,
         }
     }

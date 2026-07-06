@@ -15,6 +15,7 @@
 //! - `coralos`: first-class Coral session/transcript protocol around the
 //!   compatibility engine and future external Coral transport.
 //! - `agent`: Match Intelligence Agent trace/tool orchestration.
+//! - `llm`: optional Venice/OpenAI-compatible explanation client.
 //! - `proof`: proof receipt and validation simulation state.
 
 pub mod agent;
@@ -22,6 +23,7 @@ pub mod chain;
 pub mod coral;
 pub mod coralos;
 pub mod ledger;
+pub mod llm;
 pub mod proof;
 pub mod solana_pay;
 pub mod txline;

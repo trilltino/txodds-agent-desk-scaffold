@@ -5,8 +5,8 @@
 //! docs/architecture/01-lean-e2e-architecture.md):
 //!
 //! - `commands/*`: thin IPC adapters exposed to the React webview.
-//! - `services/*`: async side-effect units (TxLINE, chain, ledger, payments,
-//!   legacy Coral round engine + CoralOS bridge).
+//! - `services/*`: async side-effect units (TxLINE, chain, ledger, proof,
+//!   LLM, CoralOS Console, and payments).
 //! - `domain/*`: staged deterministic contracts for the room/market/agent
 //!   engines.
 //! - `event_bus`: the single table of native event topics.
@@ -30,9 +30,7 @@ use tauri::Manager;
 
 use crate::config::AppConfig;
 use crate::services::ledger::LedgerStore;
-use crate::state::{
-    resolve_named_sidecar_path, resolve_resource_dir, resolve_sidecar_path, DesktopState,
-};
+use crate::state::{resolve_named_sidecar_path, resolve_resource_dir, DesktopState};
 
 pub fn run() {
     // Builder setup is the root composition point for plugins, managed state,
@@ -59,8 +57,7 @@ pub fn run() {
                 app_data_dir.join("ledger.sqlite3"),
             )?));
             // Resolve sidecar paths before state registration so configuration
-            // errors surface during app setup rather than first settlement.
-            let sidecar_path = resolve_sidecar_path(app, &config);
+            // errors surface during app setup rather than first proof request.
             let yellowstone_sidecar_path =
                 resolve_named_sidecar_path(app, "yellowstone-bridge.mjs");
             let txoracle_validation_sidecar_path =
@@ -98,7 +95,6 @@ pub fn run() {
                 ledger,
                 txline_task: Mutex::new(None),
                 yellowstone,
-                settlement_bridge: services::coral::settlement::SettlementBridge::new(sidecar_path),
                 validation_bridge: services::proof::ValidationBridge::new(
                     txoracle_validation_sidecar_path,
                     txoracle_idl_dir,
