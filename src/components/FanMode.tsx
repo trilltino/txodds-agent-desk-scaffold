@@ -3,10 +3,11 @@ import { exportFanCardNative, native } from '../desktop/transport'
 
 // FanMode converts the selected event or winning delivery into plain-language
 // output for the consumer/fan track.
-export function FanMode({ run, selectedEvent }: { run?: AgentRun; selectedEvent: TxLineEvent }) {
+export function FanMode({ run, selectedEvent }: { run?: AgentRun; selectedEvent?: TxLineEvent }) {
   // Prefer the delivery's fan copy when an agent run exists; otherwise keep the
   // selected TxLINE event readable before any market round has run.
-  const payload = run?.delivery?.fanCopy ?? selectedEvent.body
+  const payload = run?.delivery?.fanCopy ?? selectedEvent?.body ?? 'Waiting for the first live TxLINE event.'
+  const title = selectedEvent?.title ?? 'Live World Cup feed starting'
   async function exportCard() {
     // Export is native-only because Rust owns filesystem access.
     if (!run || !native) return
@@ -20,11 +21,11 @@ export function FanMode({ run, selectedEvent }: { run?: AgentRun; selectedEvent:
         <h2>Fan Mode</h2>
         <span className="pill">Track 3</span>
       </div>
-      <h3>{selectedEvent.title}</h3>
+      <h3>{title}</h3>
       <p>{payload}</p>
       <div className="shareCard">
         <strong>Shareable card</strong>
-        <p>{selectedEvent.title} - {selectedEvent.body}</p>
+        <p>{title} - {payload}</p>
       </div>
       <button className="secondary" disabled={!run || !native} onClick={exportCard}>Export fan card</button>
     </article>

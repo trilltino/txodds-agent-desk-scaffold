@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+.txline/
 src-tauri/target/
 .agents/
 runtime/sidecars/bin/node.exe

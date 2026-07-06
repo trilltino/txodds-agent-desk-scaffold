@@ -34,6 +34,11 @@ web:
 prepare-sidecars:
     npm run prepare:sidecars
 
+# Mint free TxLINE World Cup credentials (guest JWT + API token) into .env.
+# Defaults to devnet level 1 (60s delay); pass --network mainnet --level 12 for real-time.
+txline-onboard *ARGS:
+    node tooling/txline-onboard.mjs {{ARGS}}
+
 # Build the webview assets and prepare sidecars.
 build:
     npm run build:desktop

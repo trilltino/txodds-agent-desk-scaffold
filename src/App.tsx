@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AgentRun, CoralAgentManifest, IngestStatus, TrackMode, TxLineEvent } from './types'
+import type { AgentRun, CoralAgentManifest, Fixture, IngestStatus, TrackMode, TxLineEvent } from './types'
 import { mockEvents } from './domain/txline/mock'
+import { loadFixtureEvent, loadLiveFixtures } from './domain/txline/fixtures'
 import { runLocalAgentRound } from './domain/coral/localRound'
 import { fallbackCoralAgents, loadCoralAgents } from './domain/coral/agents'
-import { getConfig, listRunsNative, native, onIngestStatus, onTxLineEvent, runAgentRoundNative, startTxLine, stopTxLine } from './desktop/transport'
+import { listRunsNative, native, onIngestStatus, onTxLineEvent, runAgentRoundNative, startTxLine, stopTxLine } from './desktop/transport'
 import { Shell } from './components/Shell'
+import { FixtureBoard } from './components/FixtureBoard'
 import { LiveFeed } from './components/LiveFeed'
 import { AgentArena } from './components/AgentArena'
 import { SettlementLab } from './components/SettlementLab'
@@ -19,17 +21,35 @@ export default function App() {
   // Track determines which product lens the same TxLINE event and market run
   // are being viewed through: settlement, trading, or fan experience.
   const [track, setTrack] = useState<TrackMode>('trading')
-  // Browser-only dev starts with fixtures immediately. Native mode waits for
-  // Rust to emit txline://event so credentials never enter the webview.
+  // Native mode is live-only: events, fixtures, and selection all start empty
+  // and fill from Rust TxLINE ingest. Mock data exists solely for browser-only
+  // Vite development, which has no credential-safe way to reach TxLINE.
   const [events, setEvents] = useState<TxLineEvent[]>(native ? [] : mockEvents)
-  const [selectedEvent, setSelectedEvent] = useState<TxLineEvent>(mockEvents[0])
+  const [selectedEvent, setSelectedEvent] = useState<TxLineEvent | undefined>(native ? undefined : mockEvents[0])
   const [ingestStatuses, setIngestStatuses] = useState<IngestStatus[]>(
     native ? [] : [{ source: 'mock', state: 'connected', detail: 'Browser mock TxLINE fallback active' }]
   )
+  const [fixtures, setFixtures] = useState<Fixture[]>([])
+  const [fixturesLoading, setFixturesLoading] = useState(native)
+  const [fixturesError, setFixturesError] = useState<string>()
+  const [selectedFixtureId, setSelectedFixtureId] = useState<number>()
   // Runs are newest-first because all panels render the current run by default.
   const [runs, setRuns] = useState<AgentRun[]>([])
   const [agents, setAgents] = useState<CoralAgentManifest[]>(fallbackCoralAgents)
   const currentRun = useMemo(() => runs[0], [runs])
+
+  async function refreshFixtures() {
+    if (!native) return
+    setFixturesLoading(true)
+    setFixturesError(undefined)
+    try {
+      setFixtures(await loadLiveFixtures())
+    } catch (err) {
+      setFixturesError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setFixturesLoading(false)
+    }
+  }
 
   useEffect(() => {
     // Native mode asks Rust for the agent registry; browser mode falls back to
@@ -47,12 +67,12 @@ export default function App() {
       setIngestStatuses((prev) => [status, ...prev.filter((item) => item.source !== status.source)].slice(0, 6))
     })
 
-    // Restore durable run history from SQLite, then let Rust decide whether it
-    // can use live TxLINE credentials or should fall back to mock mode.
+    // Restore durable run history from SQLite, then go straight to live TxLINE.
+    // There is no mock fallback: missing credentials surface as a
+    // credentials_required ingest status with onboarding instructions.
     void listRunsNative().then(setRuns).catch(console.error)
-    void getConfig()
-      .then((cfg) => startTxLine(cfg.txlineConfigured ? 'live' : 'mock'))
-      .catch(() => startTxLine('mock'))
+    void startTxLine('live').catch(console.error)
+    void refreshFixtures()
 
     return () => {
       offTxLine()
@@ -61,10 +81,25 @@ export default function App() {
     }
   }, [])
 
+  // Selecting a fixture pulls its live odds/scores snapshots from TxLINE and
+  // stages them as the selected event so a round can start before the stream
+  // produces the next update for that match.
+  async function selectFixture(fixture: Fixture) {
+    setSelectedFixtureId(fixture.fixtureId)
+    try {
+      const event = await loadFixtureEvent(fixture)
+      setEvents((prev) => [event, ...prev.filter((item) => item.id !== event.id)].slice(0, 50))
+      setSelectedEvent(event)
+    } catch (err) {
+      console.error('fixture snapshot failed', err)
+    }
+  }
+
   // The UI calls one function for both native and browser-dev mode. Native mode
   // executes the Rust market engine and persists to SQLite; browser mode uses
   // deterministic local fallback code.
   async function startRound(event = selectedEvent, nextTrack = track) {
+    if (!event) return
     const run = native
       ? await runAgentRoundNative(event, nextTrack)
       : await runLocalAgentRound(event, nextTrack)
@@ -74,15 +109,25 @@ export default function App() {
   return (
     <Shell track={track} setTrack={setTrack} onStart={() => startRound()}>
       <section className="grid two">
+        <FixtureBoard
+          fixtures={fixtures}
+          loading={fixturesLoading}
+          error={fixturesError}
+          selectedFixtureId={selectedFixtureId}
+          onSelect={selectFixture}
+          onRefresh={() => void refreshFixtures()}
+        />
         <LiveFeed events={events} selected={selectedEvent} ingestStatuses={ingestStatuses} onSelect={setSelectedEvent} onStartRound={startRound} />
+      </section>
+      <section className="grid two">
         <AgentArena agents={agents} track={track} run={currentRun} onRun={() => startRound()} />
-      </section>
-      <section className="grid two">
         <SettlementLab run={currentRun} />
-        <FanMode run={currentRun} selectedEvent={selectedEvent} />
       </section>
       <section className="grid two">
+        <FanMode run={currentRun} selectedEvent={selectedEvent} />
         <ProofPanel run={currentRun} />
+      </section>
+      <section className="grid two">
         <TrackScorecard />
       </section>
     </Shell>

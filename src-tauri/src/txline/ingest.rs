@@ -37,7 +37,7 @@ pub fn spawn_txline(
     // cancellation when switching modes.
     tauri::async_runtime::spawn(async move {
         match mode.as_str() {
-            "live" => live_loop(app, client, config, replay_dir).await,
+            "live" => live_loop(app, client, config, replay_dir, fixture_id).await,
             "replay" => replay_loop(app, replay_dir, fixture_id).await,
             _ => mock_loop(app).await,
         }
@@ -86,7 +86,13 @@ async fn replay_loop(app: AppHandle, replay_dir: PathBuf, fixture_id: Option<Str
     emit_status(&app, "replay", "stopped", "replay stream completed");
 }
 
-async fn live_loop(app: AppHandle, client: Client, config: AppConfig, replay_dir: PathBuf) {
+async fn live_loop(
+    app: AppHandle,
+    client: Client,
+    config: AppConfig,
+    replay_dir: PathBuf,
+    fixture_id: Option<String>,
+) {
     let Some(jwt) = config.txline_guest_jwt.clone() else {
         emit_status(
             &app,
@@ -121,9 +127,10 @@ async fn live_loop(app: AppHandle, client: Client, config: AppConfig, replay_dir
         origin.clone(),
         jwt.clone(),
         token.clone(),
+        fixture_id.clone(),
         "odds",
     );
-    let scores = live_stream_loop(app, client, replay_dir, origin, jwt, token, "scores");
+    let scores = live_stream_loop(app, client, replay_dir, origin, jwt, token, fixture_id, "scores");
     tokio::join!(odds, scores);
 }
 
@@ -134,9 +141,12 @@ async fn live_stream_loop(
     origin: String,
     jwt: String,
     token: String,
+    fixture_id: Option<String>,
     stream: &'static str,
 ) {
     let mut attempt = 0_u64;
+    // Last SSE id survives reconnects so the server can resume without gaps.
+    let mut last_event_id: Option<String> = None;
     loop {
         attempt = attempt.saturating_add(1);
         let source = format!("live:{stream}");
@@ -146,7 +156,19 @@ async fn live_stream_loop(
             "connecting",
             &format!("connecting to TxLINE {stream} SSE attempt {attempt}"),
         );
-        match connect_sse_once(&app, &client, &replay_dir, &origin, &jwt, &token, stream).await {
+        match connect_sse_once(
+            &app,
+            &client,
+            &replay_dir,
+            &origin,
+            &jwt,
+            &token,
+            fixture_id.as_deref(),
+            &mut last_event_id,
+            stream,
+        )
+        .await
+        {
             Ok(()) => emit_status(
                 &app,
                 &source,
@@ -160,6 +182,7 @@ async fn live_stream_loop(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn connect_sse_once(
     app: &AppHandle,
     client: &Client,
@@ -167,18 +190,24 @@ async fn connect_sse_once(
     origin: &str,
     jwt: &str,
     token: &str,
+    fixture_id: Option<&str>,
+    last_event_id: &mut Option<String>,
     stream: &'static str,
 ) -> Result<(), String> {
-    let stream_url = format!("{}/api/{stream}/stream", origin);
-    let response = match client
+    let mut stream_url = format!("{}/api/{stream}/stream", origin);
+    if let Some(fixture) = fixture_id.filter(|value| !value.trim().is_empty()) {
+        stream_url = format!("{stream_url}?fixtureId={fixture}");
+    }
+    let mut request = client
         .get(stream_url)
         .bearer_auth(jwt)
         .header("X-Api-Token", token)
         .header("Accept", "text/event-stream")
-        .header("Cache-Control", "no-cache")
-        .send()
-        .await
-    {
+        .header("Cache-Control", "no-cache");
+    if let Some(id) = last_event_id.as_deref() {
+        request = request.header("Last-Event-ID", id);
+    }
+    let response = match request.send().await {
         Ok(response) => response,
         Err(err) => {
             return Err(format!("TxLINE {stream} SSE connection failed: {err}"));
@@ -205,6 +234,9 @@ async fn connect_sse_once(
         while let Some((index, delimiter_len)) = find_sse_separator(&buffer) {
             let block = buffer[..index].to_string();
             buffer = buffer[index + delimiter_len..].to_string();
+            if let Some(id) = sse_block_id(&block) {
+                *last_event_id = Some(id);
+            }
             if let Some(event) = parse_sse_block(stream, &block) {
                 append_replay(replay_dir, &event).await;
                 emit_event(app, event);
@@ -273,6 +305,14 @@ fn parse_sse_block(stream: &str, block: &str) -> Option<TxLineEvent> {
         score,
         proof: None,
     })
+}
+
+fn sse_block_id(block: &str) -> Option<String> {
+    block
+        .lines()
+        .find_map(|line| line.trim_start().strip_prefix("id:"))
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty())
 }
 
 fn find_sse_separator(buffer: &str) -> Option<(usize, usize)> {

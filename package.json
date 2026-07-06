@@ -13,7 +13,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "lint:types": "tsc --noEmit"
+    "lint:types": "tsc --noEmit",
+    "txline:onboard": "node tooling/txline-onboard.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
@@ -27,8 +28,11 @@
     "vite": "^6.0.0"
   },
   "devDependencies": {
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
     "@tauri-apps/cli": "^2.5.0",
     "@types/react": "^19.0.1",
-    "@types/react-dom": "^19.0.1"
+    "@types/react-dom": "^19.0.1",
+    "tweetnacl": "^1.0.3"
   }
 }
